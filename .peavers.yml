@@ -4,8 +4,7 @@
 iconType: SystemIcon
 
 # CurseForge project ID for download statistics
-# TODO: fill in once the CurseForge project exists
-curseForgeProjectId: 0
+curseForgeProjectId: 1680879
 
 # Member of the Ultra Performance programme: measured against a declared budget
 # on every push, with the numbers published in the README.

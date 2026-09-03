@@ -10,6 +10,7 @@
 
 ## X-Website: https://peavers.io
 ## X-Source-Code: https://github.com/peavers-warcraft/PeaversMiniMap
+## X-Curse-Project-ID: 1680879
 
 ## Dependencies: PeaversCommons, PeaversConfig
 ## SavedVariables: PeaversMiniMapDB
