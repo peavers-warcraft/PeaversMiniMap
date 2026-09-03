@@ -1,0 +1,6 @@
+{
+  "maxWidgetCallsPerFrame": 0,
+  "maxIdleCallsPerSecond": 0,
+  "maxPackagedKB": 80,
+  "allowBundledLibs": false
+}

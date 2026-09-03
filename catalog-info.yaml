@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: PeaversMiniMap
+  description: "A World of Warcraft addon that squares the minimap, pins it to a screen corner, and collects scattered addon buttons into one grid."
+  annotations:
+    github.com/project-slug: peavers-warcraft/PeaversMiniMap
+spec:
+  type: library
+  lifecycle: production
+  owner: peavers-warcraft
