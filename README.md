@@ -67,7 +67,7 @@ It also takes work away. Collected buttons lose their drag handlers, which is wh
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 86.8 KB | 110 KB | pass |
+| Packaged size | 84.5 KB | 110 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
 | Widget calls per frame | 0 | 0 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
@@ -83,7 +83,7 @@ Scenarios driven against the real addon source, outside the game:
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
 | disable and restore Blizzard's minimap | 0.00 | 508 client calls, one-off |
 
-<sub>2,351 lines of Lua · 86.8 KB packaged · no bundled libraries</sub>
+<sub>2,351 lines of Lua · 84.5 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
