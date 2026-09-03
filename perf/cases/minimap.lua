@@ -56,6 +56,8 @@ local function Enrich(frame, name, objectType, parent)
     function frame:IsMovable() return self._movable end
     function frame:SetMovable(v) Count("SetMovable") self._movable = v end
     function frame:IsMouseOver() return false end
+    function frame:GetLeft() Count("GetLeft") return self._left end
+    function frame:GetTop() Count("GetTop") return self._top end
     function frame:GetFrameStrata() return "MEDIUM" end
     function frame:GetFrameLevel() return 1 end
     function frame:GetChildren() return unpack(self._children) end
@@ -195,16 +197,32 @@ _G.ExpansionLandingPageMinimapButton = NewNamed("ExpansionLandingPageMinimapButt
 _G.QueueStatusButton = NewNamed("QueueStatusButton", "Button", Minimap, 32)
 _G.GameTimeFrame = NewNamed("GameTimeFrame", "Button", Minimap, 32)
 _G.AddonCompartmentFrame = NewNamed("AddonCompartmentFrame", "Button", Minimap, 32)
+_G.MiniMapWorldMapButton = NewNamed("MiniMapWorldMapButton", "Button", Minimap, 32)
+_G.TimeManagerClockButton = NewNamed("TimeManagerClockButton", "Button", Minimap, 32)
+
+-- Blizzard anchors the quest tracker to the minimap cluster, which is why
+-- moving the cluster used to drag it across the screen.
+local tracker = NewNamed("ObjectiveTrackerFrame", "Frame", _G.UIParent, 240)
+tracker._left, tracker._top = 1500, 700
+tracker:SetPoint("TOPRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, -20)
+_G.ObjectiveTrackerFrame = tracker
 
 --------------------------------------------------------------------------------
 -- Thirty third-party buttons, placed the way the real ones place themselves
+--
+-- One of them is a sibling Peavers addon's button. A "^Peavers" pattern meant to
+-- skip this addon's own frames used to swallow it, so it is named explicitly
+-- here and asserted on below.
 --------------------------------------------------------------------------------
 
 local BUTTON_COUNT = 30
 local addonButtons = {}
 
+local SIBLING_BUTTON = "PeaversGetThereMinimapButton"
+
 for i = 1, BUTTON_COUNT do
-    local button = NewNamed(string.format("LibDBIcon10_TestAddon%02d", i), "Button", Minimap, 31)
+    local name = (i == 1) and SIBLING_BUTTON or string.format("LibDBIcon10_TestAddon%02d", i)
+    local button = NewNamed(name, "Button", Minimap, 31)
     button:SetPoint("CENTER", Minimap, "CENTER", i, -i)
 
     -- A LibDBIcon button installs an OnUpdate for the duration of a drag, and
@@ -242,7 +260,8 @@ PMM.Config = {
     offsetY = 12,
     zoneTextMode = "overlay",
     hideZoomButtons = true,
-    hiddenWidgets = {},
+    widgets = {},
+    objectiveTracker = "detach",
     collectButtons = true,
     visibility = "always",
     growDirection = "BOTTOM",
@@ -264,8 +283,10 @@ assert(loadfile(ADDON_DIR .. "/src/Core/Buttons.lua"))("PeaversMiniMap", PMM)
 
 Stubs.ResetCounts()
 
-PMM.Square:Initialize()
+-- Same order as Main.lua: the grid has to be live before Square hands
+-- Blizzard's calendar, group-finder eye and expansion button into it.
 PMM.Buttons:Initialize()
+PMM.Square:Initialize()
 FlushTimers(0)              -- the coalesced layout pass lands here
 
 -- Addons register their buttons at wildly different points during login, so the
@@ -278,10 +299,45 @@ local setupCalls = Stubs.TotalCalls()
 assert(#pending == 0,
     #pending .. " timer(s) still queued once login has settled; the addon should be inert by now")
 
-local collected = PMM.Buttons:Count()
-assert(collected == BUTTON_COUNT,
-    string.format("expected %d buttons collected, got %d", BUTTON_COUNT, collected))
 assert(_G.GetMinimapShape() == "SQUARE", "minimap shape was not squared")
+
+-- Blizzard's own buttons default into the grid, so the count is the third-party
+-- buttons plus those. Naming them here means a widget quietly dropping out of
+-- the table fails the build rather than reappearing on the minimap.
+local GRID_WIDGETS = {
+    _G.QueueStatusButton,               -- the group finder eye
+    _G.GameTimeFrame,                   -- calendar
+    _G.ExpansionLandingPageMinimapButton, -- Omnium Folio
+    _G.AddonCompartmentFrame,
+    _G.MiniMapWorldMapButton,
+}
+for _, widget in ipairs(GRID_WIDGETS) do
+    assert(PMM.Buttons:IsCollected(widget),
+        (widget:GetName() or "?") .. " should have been collected into the grid")
+end
+
+-- The clock defaults to hidden, and the tracking flag stays on the map.
+assert(not _G.TimeManagerClockButton:IsShown(), "the clock should default to hidden")
+assert(not PMM.Buttons:IsCollected(MinimapCluster.Tracking),
+    "the tracking button belongs on the map, not in the grid")
+
+-- The regression that sent a sibling addon's button back to the minimap edge.
+local siblingCollected = false
+for _, name in ipairs(PMM.Buttons:GetNames()) do
+    if name == SIBLING_BUTTON then siblingCollected = true end
+end
+assert(siblingCollected, SIBLING_BUTTON .. " was not collected")
+
+local collected = PMM.Buttons:Count()
+assert(collected == BUTTON_COUNT + #GRID_WIDGETS,
+    string.format("expected %d buttons collected, got %d",
+        BUTTON_COUNT + #GRID_WIDGETS, collected))
+
+-- Detaching the tracker is what stops the quest list sliding across the screen
+-- when the minimap is pinned to a corner.
+local trackerAnchor = { tracker:GetPoint(1) }
+assert(trackerAnchor[2] == _G.UIParent,
+    "the objective tracker should be anchored to UIParent, not the minimap cluster")
 
 -- Every drag handler is gone, so no collected button can start an OnUpdate.
 local dragHandlersLeft = 0
@@ -413,6 +469,11 @@ local function MeasureRestore()
 
     assert(PMM.Buttons:Count() == 0, "buttons were not released")
     assert(_G.GetMinimapShape() == "ROUND", "minimap shape was not restored")
+    assert(_G.TimeManagerClockButton:IsShown(), "the clock was not shown again")
+    for _, widget in ipairs(GRID_WIDGETS) do
+        assert(not PMM.Buttons:IsCollected(widget),
+            (widget:GetName() or "?") .. " was not released from the grid")
+    end
     for _, button in ipairs(addonButtons) do
         assert(button:GetScript("OnDragStart"), "a button did not get its drag handler back")
     end
@@ -432,7 +493,7 @@ local restore = MeasureRestore()
 
 return {
     {
-        name = "login: square applied, " .. BUTTON_COUNT .. " buttons collected",
+        name = "login: square applied, " .. (BUTTON_COUNT + 5) .. " buttons collected",
         callsPerFrame = 0,
         notes = setupCalls .. " client calls, one-off",
     },

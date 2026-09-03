@@ -76,9 +76,12 @@ PeaversCommons.SlashCommands:Register(addonName, "pmm", {
 PeaversCommons.Events:Init(addonName, function()
     PMM.Config:Initialize()
 
-    -- Square first: Buttons anchors its grid to the minimap's final geometry.
-    PMM.Square:Initialize()
+    -- Buttons first: Square hands Blizzard's calendar, group-finder eye and
+    -- expansion button straight into the grid as it applies, so the grid has to
+    -- be live by then. Square:Apply finishes by laying the grid out against the
+    -- minimap's final geometry, so nothing is lost by starting this way round.
     PMM.Buttons:Initialize()
+    PMM.Square:Initialize()
 
     if PMM.ConfigUI and PMM.ConfigUI.Initialize then
         PMM.ConfigUI:Initialize()
@@ -102,6 +105,13 @@ PeaversCommons.Events:Init(addonName, function()
         if PMM.Config.enabled then
             C_Timer.After(0, function() PMM.Square:Apply() end)
         end
+    end)
+
+    -- A protected frame can refuse to be reparented during combat, which leaves
+    -- a Blizzard widget sitting in a corner instead of the grid. Retry once the
+    -- fight is over. Registering the event costs nothing while out of combat.
+    PeaversCommons.Events:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if PMM.Config.enabled then PMM.Square:Apply() end
     end)
 
     -- Use the centralized SettingsUI system from PeaversCommons

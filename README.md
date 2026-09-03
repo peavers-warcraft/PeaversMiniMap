@@ -10,8 +10,9 @@ A World of Warcraft addon that turns the minimap into a clean square pinned to a
 <!-- peavers:features -->
 - Square minimap, pinned to whichever screen corner you choose
 - Addon buttons collected into a grid that they cannot wander out of
-- Zone name, tracking, mail, difficulty and the expansion button moved onto the square's own corners
-- Adjustable size, scale and border, with the zoom buttons hidden by default
+- Blizzard's own buttons too - calendar, group finder eye, Omnium Folio, addon compartment - each one into the grid, onto a corner, or gone
+- Stops the quest tracker being dragged across the screen with the minimap
+- Adjustable size, scale and border, with the zoom buttons and clock hidden by default
 - Fully reversible: turning it off restores Blizzard's minimap exactly, with no reload
 - Runs nothing per frame and nothing on a timer
 <!-- /peavers:features -->
@@ -36,7 +37,15 @@ Buttons are identified by exclusion rather than by a list of known addons, so a 
 
 Any button you would rather leave alone can be excluded from the **Buttons** page in the settings; excluded buttons go straight back to wherever their own addon put them.
 
-The grid can sit below, above or to either side of the map, and can be shown always, only while the pointer is over the minimap, or behind a small button on the map's corner.
+The grid can sit below, above or to either side of the map, and can be shown always, only while the pointer is over the minimap, or behind a small button on the map's corner. If you set it to hover or click-to-open, remember that anything you have put in the grid is hidden with it - including the group finder eye.
+
+### Blizzard's own buttons
+
+A round minimap had room around its edge for the calendar, the group finder eye, the Omnium Folio button and the addon compartment. A square one does not, so the **Blizzard** settings page gives each of them the same three choices: in the grid, on the map's corner, or hidden. Tracking, mail and the difficulty flag default to the corners because they are map furniture rather than buttons; the clock and zoom buttons default to hidden.
+
+### The quest tracker
+
+Blizzard's default layout anchors the objective tracker to the minimap, so pinning the map to a corner drags the quest list along with it. The addon gives the tracker an anchor of its own the first time it moves the map, which leaves it where it was - and you can still move it in Edit Mode afterwards. Set it back to "let it follow the minimap" if you would rather Blizzard kept control.
 <!-- /peavers:usage -->
 
 ## Performance
@@ -53,7 +62,7 @@ It also takes work away. Collected buttons lose their drag handlers, which is wh
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 61.5 KB | 80 KB | pass |
+| Packaged size | 76.5 KB | 80 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
 | Widget calls per frame | 0 | 0 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
@@ -62,14 +71,14 @@ Scenarios driven against the real addon source, outside the game:
 
 | Scenario | Calls/frame | Notes |
 |---|---:|---|
-| login: square applied, 30 buttons collected | 0.00 | 666 client calls, one-off |
-| 10 addons register buttons in one frame | 0.00 | 319 client calls, 1 coalesced layout pass, 40 buttons in the grid |
+| login: square applied, 35 buttons collected | 0.00 | 897 client calls, one-off |
+| 10 addons register buttons in one frame | 0.00 | 339 client calls, 1 coalesced layout pass, 45 buttons in the grid |
 | steady state, 144fps | 0.00 | 0 OnUpdate handler(s) across 144 frames; 0 tick(s) |
 | steady state, 60fps | 0.00 | 0 OnUpdate handler(s) across 60 frames; 0 tick(s) |
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
-| disable and restore Blizzard's minimap | 0.00 | 442 client calls, one-off |
+| disable and restore Blizzard's minimap | 0.00 | 500 client calls, one-off |
 
-<sub>1,751 lines of Lua · 61.5 KB packaged · no bundled libraries</sub>
+<sub>2,089 lines of Lua · 76.5 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 

@@ -71,17 +71,30 @@ local IGNORE_EXACT = {
     MinimapMailFrame = true,
 }
 
+-- This addon's own furniture. Named explicitly rather than by a "^Peavers"
+-- pattern: that pattern also swallowed PeaversGetThereMinimapButton and every
+-- other sibling addon's button, which are exactly what we are here to collect.
+local IGNORE_SELF = {
+    PeaversMiniMapButtonBar = true,
+    PeaversMiniMapButtonToggle = true,
+    PeaversMiniMapBorder = true,
+}
+
 -- Anything matching one of these is either Blizzard's or another button bar's.
 -- Collecting a rival bar's container would nest one grid inside another.
+--
+-- Blizzard's own buttons are deliberately listed here even though several of
+-- them do end up in the grid: they get there through Square.lua's widget table,
+-- which knows what each one is, rather than by being guessed at.
 local IGNORE_PATTERNS = {
     "^Minimap",
     "^MiniMap",
-    "^Peavers",
     "^GameTime",
     "^QueueStatus",
     "^Expansion",
     "^Garrison",
     "^TimeManager",
+    "^AddonCompartment",
     "^Hybrid",
     "^SexyMap",
     "^ButtonCollect",
@@ -94,7 +107,7 @@ local IGNORE_PATTERNS = {
 local MIN_EDGE, MAX_EDGE = 12, 52
 
 local function IsIgnoredName(name)
-    if IGNORE_EXACT[name] then return true end
+    if IGNORE_EXACT[name] or IGNORE_SELF[name] then return true end
     for _, pattern in ipairs(IGNORE_PATTERNS) do
         if string.match(name, pattern) then return true end
     end
@@ -156,8 +169,27 @@ local function RequestLayout()
     end)
 end
 
-local function Adopt(button)
+-- Some Blizzard buttons resize themselves after we have placed them (the
+-- expansion/Omnium Folio button is the notorious one). The hook fires only when
+-- something else calls SetSize, so it costs nothing while nothing happens, and
+-- it goes inert the moment the button leaves the grid.
+local sizeGuard = false
+
+local function LockSize(button)
+    hooksecurefunc(button, "SetSize", function(self, w)
+        if sizeGuard or not collected[self] then return end
+        local target = PMM.Config.buttonSize or 26
+        if w ~= target then
+            sizeGuard = true
+            self:SetSize(target, target)
+            sizeGuard = false
+        end
+    end)
+end
+
+local function Adopt(button, options)
     if collected[button] then return false end
+    options = options or {}
 
     local snapshot = {
         parent = button:GetParent(),
@@ -172,7 +204,12 @@ local function Adopt(button)
         movable = button:IsMovable(),
     }
 
-    RawSetParent(button, bar)
+    -- A protected frame can refuse to be reparented in combat. Bail out before
+    -- anything else is touched rather than leaving it half-adopted; the caller
+    -- retries when combat ends.
+    local reparented = pcall(RawSetParent, button, bar)
+    if not reparented then return false end
+
     RawClearAllPoints(button)
     button:SetFrameStrata(bar:GetFrameStrata())
     button:SetFrameLevel(bar:GetFrameLevel() + 1)
@@ -200,7 +237,22 @@ local function Adopt(button)
 
     collected[button] = snapshot
     order[#order + 1] = button
+
+    if options.lockSize and not snapshot.sizeLocked then
+        snapshot.sizeLocked = true
+        LockSize(button)
+    end
+
     return true
+end
+
+local function Forget(button)
+    for index, entry in ipairs(order) do
+        if entry == button then
+            table.remove(order, index)
+            return
+        end
+    end
 end
 
 local function Release(button)
@@ -440,6 +492,43 @@ function Buttons:Layout()
 end
 
 --------------------------------------------------------------------------------
+-- Blizzard's own buttons
+--
+-- Square.lua decides which of Blizzard's minimap widgets belong in the grid and
+-- hands them over here. They go through exactly the same adoption as an addon
+-- button, with one addition: a size lock, because several of them resize
+-- themselves after the fact.
+--------------------------------------------------------------------------------
+
+function Buttons:IsCollected(frame)
+    return frame ~= nil and collected[frame] ~= nil
+end
+
+function Buttons:AdoptExternal(frame)
+    if not frame or collected[frame] then return collected[frame] ~= nil end
+    if not active then return false end
+    if not PMM.Config.enabled or PMM.Config.collectButtons == false then return false end
+
+    EnsureBar()
+    -- No name gate here: the caller already knows exactly what this frame is.
+    if not Adopt(frame, { lockSize = true }) then return false end
+
+    table.sort(order, function(a, b)
+        return (a:GetName() or ""):lower() < (b:GetName() or ""):lower()
+    end)
+    RequestLayout()
+    return true
+end
+
+function Buttons:ReleaseExternal(frame)
+    if not frame or not collected[frame] then return false end
+    Release(frame)
+    Forget(frame)
+    RequestLayout()
+    return true
+end
+
+--------------------------------------------------------------------------------
 -- Lifecycle
 --------------------------------------------------------------------------------
 
@@ -527,9 +616,7 @@ function Buttons:SetExcluded(name, excluded)
         for _, button in ipairs(order) do
             if button:GetName() == name then
                 Release(button)
-                for index, entry in ipairs(order) do
-                    if entry == button then table.remove(order, index) break end
-                end
+                Forget(button)
                 break
             end
         end

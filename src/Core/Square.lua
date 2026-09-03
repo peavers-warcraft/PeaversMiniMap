@@ -47,6 +47,7 @@ Square.SIZE_MAX = 400
 local applying = false      -- reentrancy guard for our own hooks
 local initialized = false
 local active = false
+local trackerDetached = false
 local original = nil        -- captured Blizzard state; nil until first Apply
 
 --------------------------------------------------------------------------------
@@ -64,22 +65,85 @@ local function Resolve(path)
         node = node[segment]
         if node == nil then return nil end
     end
+    -- Every frame and texture in WoW is a table. Insisting on one means a path
+    -- that lands on something else - a method, a number, a leftover flag - is
+    -- reported as absent rather than handed on to be indexed as a frame.
+    if type(node) ~= "table" then return nil end
     return node
 end
 
 Square.Resolve = Resolve
 
--- Blizzard widgets we relocate onto the square's corners. `inset` is measured
--- from the named corner of the minimap. Anything missing is skipped silently.
-local PLACEMENTS = {
-    { path = "MinimapCluster.Tracking", point = "TOPLEFT", x = 2, y = -2 },
-    { path = "MinimapCluster.InstanceDifficulty", point = "TOPLEFT", x = 2, y = -34 },
-    { path = "MinimapCluster.IndicatorFrame", point = "BOTTOMLEFT", x = 2, y = 2 },
-    { path = "QueueStatusButton", point = "BOTTOMLEFT", x = 2, y = 34 },
-    { path = "ExpansionLandingPageMinimapButton", point = "BOTTOMRIGHT", x = -2, y = 2 },
-    { path = "GameTimeFrame", point = "TOPRIGHT", x = -2, y = -2 },
-    { path = "AddonCompartmentFrame", point = "TOPRIGHT", x = -2, y = -34 },
+-- Blizzard's own minimap widgets, and what to do with each one.
+--
+-- Three dispositions: "corner" pins it to an edge of the square, "grid" hands it
+-- to the button grid alongside the addon buttons, and "hidden" takes it away.
+-- The defaults answer the question the round minimap never had to: a calendar
+-- icon and a group-finder eye are buttons like any other and belong in the grid,
+-- while tracking, mail and the difficulty flag are map furniture and stay put.
+--
+-- `paths` is a fallback chain because Blizzard renames these: the tracking frame
+-- has been both MinimapCluster.TrackingFrame and MinimapCluster.Tracking within
+-- one expansion. The first path that resolves wins; a widget that resolves to
+-- nothing is skipped silently, which is what keeps this table safe to carry
+-- across patches.
+Square.WIDGETS = {
+    { key = "tracking", label = "Tracking", default = "corner",
+      paths = { "MinimapCluster.TrackingFrame", "MinimapCluster.Tracking" },
+      point = "TOPLEFT", x = 2, y = -2 },
+
+    { key = "difficulty", label = "Dungeon difficulty", default = "corner",
+      paths = { "MinimapCluster.InstanceDifficulty" },
+      point = "TOPLEFT", x = 2, y = -34 },
+
+    { key = "indicators", label = "Mail and crafting orders", default = "corner",
+      paths = { "MinimapCluster.IndicatorFrame" },
+      point = "BOTTOMLEFT", x = 2, y = 2 },
+
+    { key = "queueStatus", label = "Group finder eye", default = "grid",
+      paths = { "QueueStatusButton", "QueueStatusMinimapButton" },
+      point = "BOTTOMLEFT", x = 2, y = 34 },
+
+    { key = "calendar", label = "Calendar", default = "grid",
+      paths = { "GameTimeFrame" },
+      point = "TOPRIGHT", x = -2, y = -2 },
+
+    -- The expansion landing page button. Blizzard renames what it opens every
+    -- expansion - it is the Omnium Folio in Midnight - but the frame is stable.
+    { key = "expansion", label = "Omnium Folio (expansion button)", default = "grid",
+      paths = { "ExpansionLandingPageMinimapButton", "GarrisonLandingPageMinimapButton" },
+      point = "BOTTOMRIGHT", x = -2, y = 2 },
+
+    { key = "compartment", label = "Addon compartment", default = "grid",
+      paths = { "AddonCompartmentFrame" },
+      point = "TOPRIGHT", x = -2, y = -34 },
+
+    { key = "worldMap", label = "World map button", default = "grid",
+      paths = { "MiniMapWorldMapButton" },
+      point = "BOTTOMRIGHT", x = -2, y = 34 },
+
+    { key = "clock", label = "Clock", default = "hidden",
+      paths = { "TimeManagerClockButton" },
+      point = "BOTTOM", x = 0, y = 2 },
 }
+
+local function ResolveWidget(widget)
+    for _, path in ipairs(widget.paths) do
+        local frame = Resolve(path)
+        if frame then return frame, path end
+    end
+    return nil
+end
+
+Square.ResolveWidget = ResolveWidget
+
+local function ModeFor(widget)
+    local widgets = PMM.Config.widgets
+    local mode = widgets and widgets[widget.key]
+    return mode or widget.default
+end
+
+Square.ModeFor = ModeFor
 
 -- Textures and frames that only make sense around a circle.
 local ROUND_ART = {
@@ -143,15 +207,33 @@ local function CaptureOriginal()
         }
     end
 
-    for _, placement in ipairs(PLACEMENTS) do
-        local frame = Resolve(placement.path)
+    for _, widget in ipairs(Square.WIDGETS) do
+        local frame = ResolveWidget(widget)
         if frame then
-            original.placements[placement.path] = {
+            original.placements[widget.key] = {
+                frame = frame,
                 points = CapturePoints(frame),
                 parent = frame:GetParent(),
                 scale = frame:GetScale(),
+                shown = frame:IsShown(),
             }
         end
+    end
+
+    -- Read the objective tracker's position before anything moves. Blizzard's
+    -- default layout anchors it to MinimapCluster, so moving the cluster drags
+    -- the tracker across the screen with it - which is not what anyone asking
+    -- for a square minimap had in mind. If the frame has no resolved rect yet
+    -- (common at login) this stays nil and Apply falls back to placing it under
+    -- the map instead.
+    local tracker = _G.ObjectiveTrackerFrame
+    if tracker then
+        local left, top = tracker:GetLeft(), tracker:GetTop()
+        original.tracker = {
+            points = CapturePoints(tracker),
+            left = left,
+            top = top,
+        }
     end
 
     for _, path in ipairs(ROUND_ART) do
@@ -240,16 +322,56 @@ local function ApplyZoneText(config)
     end
 end
 
---------------------------------------------------------------------------------
--- Apply
---------------------------------------------------------------------------------
-
 local function AnchorFor(key)
     for _, anchor in ipairs(Square.ANCHORS) do
         if anchor.key == key then return anchor end
     end
     return Square.ANCHORS[1]
 end
+
+--------------------------------------------------------------------------------
+-- The objective tracker
+--
+-- Blizzard's default layout anchors ObjectiveTrackerFrame to MinimapCluster, so
+-- pinning the minimap to a corner drags the quest list along with it. Giving the
+-- tracker an anchor of its own, once, breaks that link without taking ownership
+-- of where it lives - Edit Mode can still move it afterwards.
+--------------------------------------------------------------------------------
+
+local function DetachObjectiveTracker(config, size)
+    if config.objectiveTracker ~= "detach" then return end
+    if trackerDetached then return end
+
+    local tracker = _G.ObjectiveTrackerFrame
+    if not tracker then return end
+
+    RawClearAllPoints(tracker)
+
+    local snapshot = original.tracker
+    if snapshot and snapshot.left and snapshot.top then
+        -- UIParent's BOTTOMLEFT is the screen origin, so the offsets read off
+        -- the frame before anything moved can be used verbatim whatever scale
+        -- the tracker is running at.
+        RawSetPoint(tracker, "TOPLEFT", _G.UIParent, "BOTTOMLEFT", snapshot.left, snapshot.top)
+    else
+        -- No resolved rect when we looked, which happens at a cold login. Put it
+        -- under the minimap block on the same side - where Blizzard had it
+        -- anyway - rather than guessing at a pixel position.
+        local anchor = AnchorFor(config.anchor)
+        local top = anchor.key:find("TOP") and "TOP" or "BOTTOM"
+        local side = anchor.key:find("RIGHT") and "RIGHT" or "LEFT"
+        local corner = top .. side
+        local y = (config.offsetY or 12) + size + 40
+        RawSetPoint(tracker, corner, _G.UIParent, corner,
+            (config.offsetX or 12) * anchor.x, -y * (top == "TOP" and 1 or -1))
+    end
+
+    trackerDetached = true
+end
+
+--------------------------------------------------------------------------------
+-- Apply
+--------------------------------------------------------------------------------
 
 -- Tell the ecosystem the map is square. LibDBIcon and friends read this global
 -- to decide how to place buttons around the edge; leaving it round is what makes
@@ -337,20 +459,38 @@ function Square:Apply()
         end
     end
 
-    -- Corner widgets
-    for _, placement in ipairs(PLACEMENTS) do
-        local frame = Resolve(placement.path)
-        if frame and not (config.hiddenWidgets or {})[placement.path] then
-            frame:Show()
-            RawClearAllPoints(frame)
-            RawSetPoint(frame, placement.point, minimap, placement.point, placement.x, placement.y)
-        elseif frame then
-            frame:Hide()
+    -- Blizzard's widgets, each to wherever the user has sent it.
+    local Buttons = PMM.Buttons
+    for _, widget in ipairs(Square.WIDGETS) do
+        local frame = ResolveWidget(widget)
+        if frame then
+            local mode = ModeFor(widget)
+
+            -- Leaving the grid has to happen before anything else, or a widget
+            -- switched from "grid" to a corner would be positioned and then
+            -- immediately re-placed by the next layout pass.
+            if mode ~= "grid" and Buttons and Buttons:IsCollected(frame) then
+                Buttons:ReleaseExternal(frame)
+            end
+
+            if mode == "hidden" then
+                frame:Hide()
+            elseif mode == "grid" and Buttons and Buttons:AdoptExternal(frame) then
+                frame:Show()
+            else
+                -- Either the user asked for a corner, or the grid declined it
+                -- (collection switched off, or a protected frame refusing to be
+                -- reparented mid-combat). A corner is always a safe answer.
+                frame:Show()
+                RawClearAllPoints(frame)
+                RawSetPoint(frame, widget.point, minimap, widget.point, widget.x, widget.y)
+            end
         end
     end
 
     ApplyZoneText(config)
     ApplyBorder(config)
+    DetachObjectiveTracker(config, size)
 
     -- The hybrid (city) minimap draws through its own mask, so squaring the
     -- main map without this leaves a circular map in capital cities. The addon
@@ -416,13 +556,22 @@ function Square:Restore()
         end
     end
 
-    for path, snapshot in pairs(original.placements) do
-        local frame = Resolve(path)
+    for _, snapshot in pairs(original.placements) do
+        local frame = snapshot.frame
         if frame then
-            frame:Show()
+            if PMM.Buttons and PMM.Buttons:IsCollected(frame) then
+                PMM.Buttons:ReleaseExternal(frame)
+            end
             RestorePoints(frame, snapshot.points)
             frame:SetScale(snapshot.scale or 1)
+            if snapshot.shown then frame:Show() else frame:Hide() end
         end
+    end
+
+    if original.tracker and trackerDetached then
+        local tracker = _G.ObjectiveTrackerFrame
+        if tracker then RestorePoints(tracker, original.tracker.points) end
+        trackerDetached = false
     end
 
     local zoneButton = Resolve("MinimapCluster.ZoneTextButton")

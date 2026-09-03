@@ -240,6 +240,85 @@ function ConfigUI:BuildMinimapPage(parentFrame)
 end
 
 --------------------------------------------------------------------------------
+-- Blizzard page
+--------------------------------------------------------------------------------
+
+function ConfigUI:BuildBlizzardPage(parentFrame)
+    local y = -10
+    local indent = 25
+    local width = ResolveWidth(parentFrame, indent)
+
+    local _, newY = W:CreateSectionHeader(parentFrame, "Blizzard's minimap buttons", indent, y)
+    y = newY - 8
+
+    local intro = W:CreateLabel(parentFrame,
+        "A round minimap had somewhere to put all of this. A square one does " ..
+            "not, so each piece can go in the button grid, sit on a corner of " ..
+            "the map, or go away entirely.",
+        { font = "GameFontNormalSmall", color = { 0.7, 0.7, 0.7 } })
+    intro:SetPoint("TOPLEFT", indent, y)
+    intro:SetWidth(width)
+    y = y - 44
+
+    local modes = {
+        { value = "grid", label = "In the button grid" },
+        { value = "corner", label = "On the map's corner" },
+        { value = "hidden", label = "Hidden" },
+    }
+
+    for _, widget in ipairs(PMM.Square.WIDGETS) do
+        local present = PMM.Square.ResolveWidget(widget) ~= nil
+        local key = widget.key
+        local dropdown = W:CreateDropdown(parentFrame, widget.label, {
+            options = modes,
+            selected = PMM.Square.ModeFor(widget),
+            width = width,
+            onChange = function(value)
+                PMM.Config.widgets[key] = value
+                PMM.Config:Save()
+                Refresh()
+            end,
+        })
+        dropdown:SetPoint("TOPLEFT", indent, y)
+        -- A widget Blizzard has not created on this character still gets a
+        -- control, greyed out, rather than vanishing from the list - otherwise
+        -- the settings look different depending on what you happen to have.
+        if not present then dropdown:SetAlpha(0.4) end
+        y = y - 56
+    end
+
+    local _, trackerY = W:CreateSectionHeader(parentFrame, "Objective tracker", indent, y)
+    y = trackerY - 8
+
+    local trackerDropdown = W:CreateDropdown(parentFrame, "Quest tracker position", {
+        options = {
+            { value = "detach", label = "Leave it where it is" },
+            { value = "leave", label = "Let it follow the minimap" },
+        },
+        selected = PMM.Config.objectiveTracker or "detach",
+        width = width,
+        onChange = function(value)
+            PMM.Config.objectiveTracker = value
+            PMM.Config:Save()
+            Refresh()
+        end,
+    })
+    trackerDropdown:SetPoint("TOPLEFT", indent, y)
+    y = y - 56
+
+    local trackerHint = W:CreateLabel(parentFrame,
+        "Blizzard anchors the quest tracker to the minimap, so moving the map " ..
+            "drags the tracker across the screen with it. Detaching gives the " ..
+            "tracker an anchor of its own; you can still move it in Edit Mode.",
+        { font = "GameFontNormalSmall", color = { 0.5, 0.5, 0.5 } })
+    trackerHint:SetPoint("TOPLEFT", indent, y)
+    trackerHint:SetWidth(width)
+    y = y - 50
+
+    parentFrame:SetHeight(math.abs(y) + 30)
+end
+
+--------------------------------------------------------------------------------
 -- Buttons page
 --------------------------------------------------------------------------------
 
@@ -267,6 +346,9 @@ function ConfigUI:BuildButtonsPage(parentFrame)
             PMM.Config.collectButtons = checked
             PMM.Config:Save()
             if checked then PMM.Buttons:Enable() else PMM.Buttons:Disable() end
+            -- Blizzard's widgets need re-placing either way: into the grid when
+            -- collection comes back, onto their corners when it goes away.
+            Refresh()
         end,
     })
     collectToggle:SetPoint("TOPLEFT", indent, y)
@@ -427,6 +509,7 @@ function ConfigUI:GetPages()
         { key = "info", label = "Information", builder = function(f) ConfigUI:BuildInfoPage(f) end },
         { key = "minimap", label = "Minimap", builder = function(f) ConfigUI:BuildMinimapPage(f) end },
         { key = "buttons", label = "Buttons", builder = function(f) ConfigUI:BuildButtonsPage(f) end },
+        { key = "blizzard", label = "Blizzard", builder = function(f) ConfigUI:BuildBlizzardPage(f) end },
     }
 end
 

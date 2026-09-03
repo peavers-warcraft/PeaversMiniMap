@@ -33,7 +33,16 @@ local PMM_DEFAULTS = {
     -- Blizzard furniture
     zoneTextMode = "overlay",   -- "overlay" | "above" | "hidden"
     hideZoomButtons = true,
-    hiddenWidgets = {},         -- [frame path from Square.PLACEMENTS] = true
+
+    -- Per-widget disposition, keyed by Square.WIDGETS[].key:
+    -- "corner" | "grid" | "hidden". Anything absent uses that widget's own
+    -- default, so a widget added in a later patch does not need a migration.
+    widgets = {},
+
+    -- Blizzard anchors the quest tracker to MinimapCluster, so moving the
+    -- minimap drags it too. "detach" gives it an anchor of its own, once;
+    -- "leave" keeps Blizzard's behaviour.
+    objectiveTracker = "detach",
 
     -- Addon button grid
     collectButtons = true,
