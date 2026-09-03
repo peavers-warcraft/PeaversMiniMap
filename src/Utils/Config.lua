@@ -39,6 +39,11 @@ local PMM_DEFAULTS = {
     -- default, so a widget added in a later patch does not need a migration.
     widgets = {},
 
+    -- Sparse per-widget placement for anything in "corner" mode:
+    -- [key] = { point = "TOPLEFT", x = 2, y = 34, scale = 1 }. Offsets are
+    -- positive insets measured inward from the anchor; Square derives the sign.
+    widgetLayout = {},
+
     -- Blizzard anchors the quest tracker to MinimapCluster, so moving the
     -- minimap drags it too. "detach" gives it an anchor of its own, once;
     -- "leave" keeps Blizzard's behaviour.

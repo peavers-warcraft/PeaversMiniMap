@@ -287,6 +287,146 @@ function ConfigUI:BuildBlizzardPage(parentFrame)
         y = y - 56
     end
 
+    --------------------------------------------------------------------------
+    -- Placement editor
+    --
+    -- One set of controls that edits whichever widget is picked, rather than
+    -- four controls per widget stacked down a very long page. Populating the
+    -- controls has to be guarded: the shared slider fires onChange from
+    -- SetValue, so an unguarded refresh would write the value it just read
+    -- back into the config of whichever widget was selected before.
+    --------------------------------------------------------------------------
+
+    local _, placeY = W:CreateSectionHeader(parentFrame, "Placement", indent, y)
+    y = placeY - 8
+
+    local placeHint = W:CreateLabel(parentFrame,
+        "Position and size anything set to sit on the map's corner. Offsets " ..
+            "measure inward from the anchor, so they read the same way whichever " ..
+            "corner you pick.",
+        { font = "GameFontNormalSmall", color = { 0.7, 0.7, 0.7 } })
+    placeHint:SetPoint("TOPLEFT", indent, y)
+    placeHint:SetWidth(width)
+    y = y - 44
+
+    local Square = PMM.Square
+    local updatingUI = false
+    local selected = Square.WIDGETS[1]
+    for _, widget in ipairs(Square.WIDGETS) do
+        -- Default the picker to the difficulty flag: it is the one that most
+        -- wants moving, being the only widget that overlaps the map's contents.
+        if widget.key == "difficulty" then selected = widget end
+    end
+
+    local pointDropdown, offsetXSlider, offsetYSlider, scaleSlider
+
+    local function RefreshPlacement()
+        local layout = Square:GetLayout(selected)
+        updatingUI = true
+        pointDropdown:SetSelected(layout.point)
+        offsetXSlider:SetValue(layout.x)
+        offsetYSlider:SetValue(layout.y)
+        scaleSlider:SetValue(layout.scale)
+        updatingUI = false
+    end
+
+    local widgetOptions = {}
+    for _, widget in ipairs(Square.WIDGETS) do
+        widgetOptions[#widgetOptions + 1] = { value = widget.key, label = widget.label }
+    end
+
+    local pickerDropdown = W:CreateDropdown(parentFrame, "Adjust", {
+        options = widgetOptions,
+        selected = selected.key,
+        width = width,
+        onChange = function(value)
+            for _, widget in ipairs(Square.WIDGETS) do
+                if widget.key == value then selected = widget end
+            end
+            RefreshPlacement()
+        end,
+    })
+    pickerDropdown:SetPoint("TOPLEFT", indent, y)
+    y = y - 56
+
+    local pointOptions = {}
+    for _, point in ipairs(Square.WIDGET_POINTS) do
+        pointOptions[#pointOptions + 1] = { value = point.key, label = point.label }
+    end
+
+    pointDropdown = W:CreateDropdown(parentFrame, "Anchor", {
+        options = pointOptions,
+        selected = Square:GetLayout(selected).point,
+        width = width,
+        onChange = function(value)
+            if updatingUI then return end
+            Square:SetLayout(selected, "point", value)
+            Refresh()
+        end,
+    })
+    pointDropdown:SetPoint("TOPLEFT", indent, y)
+    y = y - 56
+
+    offsetXSlider = W:CreateSlider(parentFrame, "Horizontal offset", {
+        min = 0, max = Square.WIDGET_OFFSET_MAX, step = 1,
+        value = Square:GetLayout(selected).x,
+        width = width,
+        onChange = function(value)
+            if updatingUI then return end
+            Square:SetLayout(selected, "x", value)
+            Refresh()
+        end,
+    })
+    offsetXSlider:SetPoint("TOPLEFT", indent, y)
+    y = y - 56
+
+    offsetYSlider = W:CreateSlider(parentFrame, "Vertical offset", {
+        min = 0, max = Square.WIDGET_OFFSET_MAX, step = 1,
+        value = Square:GetLayout(selected).y,
+        width = width,
+        onChange = function(value)
+            if updatingUI then return end
+            Square:SetLayout(selected, "y", value)
+            Refresh()
+        end,
+    })
+    offsetYSlider:SetPoint("TOPLEFT", indent, y)
+    y = y - 56
+
+    scaleSlider = W:CreateSlider(parentFrame, "Icon size", {
+        min = Square.WIDGET_SCALE_MIN, max = Square.WIDGET_SCALE_MAX, step = 0.05,
+        value = Square:GetLayout(selected).scale,
+        width = width,
+        format = function(v) return string.format("%.2f", v) end,
+        onChange = function(value)
+            if updatingUI then return end
+            Square:SetLayout(selected, "scale", value)
+            Refresh()
+        end,
+    })
+    scaleSlider:SetPoint("TOPLEFT", indent, y)
+    y = y - 58
+
+    local resetButton = W:CreateButton(parentFrame, "Reset this one", {
+        width = width,
+        onClick = function()
+            Square:ResetLayout(selected)
+            RefreshPlacement()
+            Refresh()
+        end,
+    })
+    resetButton:SetPoint("TOPLEFT", indent, y)
+    y = y - 34
+
+    local placeNote = W:CreateLabel(parentFrame,
+        "The difficulty flag, mail icon and group finder eye only appear when " ..
+            "they have something to say, so you may need to be in an instance " ..
+            "or queue to see a change.",
+        { font = "GameFontNormalSmall", color = { 0.5, 0.5, 0.5 } })
+    placeNote:SetPoint("TOPLEFT", indent, y)
+    placeNote:SetWidth(width)
+    y = y - 50
+
     local _, trackerY = W:CreateSectionHeader(parentFrame, "Objective tracker", indent, y)
     y = trackerY - 8
 

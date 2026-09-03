@@ -261,6 +261,7 @@ PMM.Config = {
     zoneTextMode = "overlay",
     hideZoomButtons = true,
     widgets = {},
+    widgetLayout = {},
     objectiveTracker = "detach",
     collectButtons = true,
     visibility = "always",
@@ -305,8 +306,7 @@ assert(_G.GetMinimapShape() == "SQUARE", "minimap shape was not squared")
 -- buttons plus those. Naming them here means a widget quietly dropping out of
 -- the table fails the build rather than reappearing on the minimap.
 local GRID_WIDGETS = {
-    _G.QueueStatusButton,               -- the group finder eye
-    _G.GameTimeFrame,                   -- calendar
+    _G.GameTimeFrame,                     -- calendar
     _G.ExpansionLandingPageMinimapButton, -- Omnium Folio
     _G.AddonCompartmentFrame,
     _G.MiniMapWorldMapButton,
@@ -316,10 +316,14 @@ for _, widget in ipairs(GRID_WIDGETS) do
         (widget:GetName() or "?") .. " should have been collected into the grid")
 end
 
--- The clock defaults to hidden, and the tracking flag stays on the map.
+-- The clock defaults to hidden, and the map furniture stays on the map. The eye
+-- is deliberately among it: it is a status light, and a status light in a grid
+-- the user can hide is no use.
 assert(not _G.TimeManagerClockButton:IsShown(), "the clock should default to hidden")
 assert(not PMM.Buttons:IsCollected(MinimapCluster.Tracking),
     "the tracking button belongs on the map, not in the grid")
+assert(not PMM.Buttons:IsCollected(_G.QueueStatusButton),
+    "the group finder eye belongs on the map, not in the grid")
 
 -- The regression that sent a sibling addon's button back to the minimap edge.
 local siblingCollected = false
@@ -338,6 +342,69 @@ assert(collected == BUTTON_COUNT + #GRID_WIDGETS,
 local trackerAnchor = { tracker:GetPoint(1) }
 assert(trackerAnchor[2] == _G.UIParent,
     "the objective tracker should be anchored to UIParent, not the minimap cluster")
+
+--------------------------------------------------------------------------------
+-- Corner widget placement
+--
+-- Offsets are stored as positive insets and the sign is derived from the anchor,
+-- so the same "10 across, 20 down" lands inside the map from any corner. These
+-- assertions are what stop that sign logic being quietly inverted.
+--------------------------------------------------------------------------------
+
+local difficulty = MinimapCluster.InstanceDifficulty
+
+local function AnchorOf(frame)
+    local point, _, _, x, y = frame:GetPoint(1)
+    return point, x, y
+end
+
+local point, offsetX, offsetY = AnchorOf(difficulty)
+assert(point == "TOPLEFT" and offsetX == 2 and offsetY == -34,
+    string.format("difficulty default placement was %s %s,%s",
+        tostring(point), tostring(offsetX), tostring(offsetY)))
+
+PMM.Config.widgetLayout.difficulty = { point = "BOTTOMRIGHT", x = 10, y = 20, scale = 1.5 }
+PMM.Square:Apply()
+point, offsetX, offsetY = AnchorOf(difficulty)
+assert(point == "BOTTOMRIGHT" and offsetX == -10 and offsetY == 20,
+    string.format("difficulty inset was not mirrored into the corner: %s %s,%s",
+        tostring(point), tostring(offsetX), tostring(offsetY)))
+assert(difficulty:GetScale() == 1.5, "difficulty scale override was not applied")
+
+-- A zero offset is a real value, not "unset".
+PMM.Config.widgetLayout.difficulty = { point = "TOPLEFT", x = 0, y = 0 }
+PMM.Square:Apply()
+point, offsetX, offsetY = AnchorOf(difficulty)
+assert(offsetX == 0 and offsetY == 0,
+    "a zero offset should survive rather than falling back to the default")
+
+PMM.Config.widgetLayout.difficulty = nil
+
+-- The eye is placed by the same code path, so pin it to a different corner and
+-- check it lands there too.
+local eye = _G.QueueStatusButton
+point, offsetX, offsetY = AnchorOf(eye)
+assert(point == "BOTTOMRIGHT",
+    "the group finder eye should default to a corner of the map, got " .. tostring(point))
+
+PMM.Config.widgetLayout.queueStatus = { point = "TOPRIGHT", x = 6, y = 6, scale = 1.25 }
+PMM.Square:Apply()
+point, offsetX, offsetY = AnchorOf(eye)
+assert(point == "TOPRIGHT" and offsetX == -6 and offsetY == -6,
+    string.format("eye placement was %s %s,%s", tostring(point), tostring(offsetX), tostring(offsetY)))
+assert(eye:GetScale() == 1.25, "eye scale override was not applied")
+
+PMM.Config.widgetLayout.queueStatus = nil
+PMM.Square:Apply()
+
+-- Several of these widgets only appear when they have something to say. Placing
+-- one must not be the same as switching it on: a difficulty flag pinned on
+-- screen outside an instance is worse than the clutter we started with.
+difficulty._shown = false
+PMM.Square:Apply()
+assert(not difficulty:IsShown(),
+    "a contextually hidden widget was force-shown by being placed")
+difficulty._shown = true
 
 -- Every drag handler is gone, so no collected button can start an OnUpdate.
 local dragHandlersLeft = 0
@@ -493,7 +560,7 @@ local restore = MeasureRestore()
 
 return {
     {
-        name = "login: square applied, " .. (BUTTON_COUNT + 5) .. " buttons collected",
+        name = "login: square applied, " .. (BUTTON_COUNT + #GRID_WIDGETS) .. " buttons collected",
         callsPerFrame = 0,
         notes = setupCalls .. " client calls, one-off",
     },

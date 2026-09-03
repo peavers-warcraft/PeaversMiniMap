@@ -10,7 +10,8 @@ A World of Warcraft addon that turns the minimap into a clean square pinned to a
 <!-- peavers:features -->
 - Square minimap, pinned to whichever screen corner you choose
 - Addon buttons collected into a grid that they cannot wander out of
-- Blizzard's own buttons too - calendar, group finder eye, Omnium Folio, addon compartment - each one into the grid, onto a corner, or gone
+- Blizzard's own buttons too - calendar, Omnium Folio, addon compartment - each one into the grid, onto a corner, or gone
+- The group finder eye and difficulty flag can be pinned to any corner of the map and resized
 - Stops the quest tracker being dragged across the screen with the minimap
 - Adjustable size, scale and border, with the zoom buttons and clock hidden by default
 - Fully reversible: turning it off restores Blizzard's minimap exactly, with no reload
@@ -41,7 +42,11 @@ The grid can sit below, above or to either side of the map, and can be shown alw
 
 ### Blizzard's own buttons
 
-A round minimap had room around its edge for the calendar, the group finder eye, the Omnium Folio button and the addon compartment. A square one does not, so the **Blizzard** settings page gives each of them the same three choices: in the grid, on the map's corner, or hidden. Tracking, mail and the difficulty flag default to the corners because they are map furniture rather than buttons; the clock and zoom buttons default to hidden.
+A round minimap had room around its edge for the calendar, the group finder eye, the Omnium Folio button and the addon compartment. A square one does not, so the **Blizzard** settings page gives each of them the same three choices: in the grid, on the map's corner, or hidden.
+
+The calendar, Omnium Folio, addon compartment and world map button default to the grid. Tracking, mail, the difficulty flag and the group finder eye stay on the map, because they are status lights as much as buttons and are no use in a grid you can hide. The clock and zoom buttons default to hidden.
+
+Anything sitting on the map can be placed and resized from the **Placement** controls on the same page: pick the widget, pick a corner (or the centre), then nudge it with the offset sliders and size it with the scale slider. Offsets measure inward from the anchor, so the same numbers read the same way whichever corner you choose. Bear in mind the difficulty flag, mail icon and eye only appear when they have something to say - you may need to be in an instance or a queue to see a change.
 
 ### The quest tracker
 
@@ -62,7 +67,7 @@ It also takes work away. Collected buttons lose their drag handlers, which is wh
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 76.5 KB | 80 KB | pass |
+| Packaged size | 85.4 KB | 110 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
 | Widget calls per frame | 0 | 0 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
@@ -71,14 +76,14 @@ Scenarios driven against the real addon source, outside the game:
 
 | Scenario | Calls/frame | Notes |
 |---|---:|---|
-| login: square applied, 35 buttons collected | 0.00 | 897 client calls, one-off |
-| 10 addons register buttons in one frame | 0.00 | 339 client calls, 1 coalesced layout pass, 45 buttons in the grid |
+| login: square applied, 34 buttons collected | 0.00 | 875 client calls, one-off |
+| 10 addons register buttons in one frame | 0.00 | 335 client calls, 1 coalesced layout pass, 44 buttons in the grid |
 | steady state, 144fps | 0.00 | 0 OnUpdate handler(s) across 144 frames; 0 tick(s) |
 | steady state, 60fps | 0.00 | 0 OnUpdate handler(s) across 60 frames; 0 tick(s) |
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
-| disable and restore Blizzard's minimap | 0.00 | 500 client calls, one-off |
+| disable and restore Blizzard's minimap | 0.00 | 490 client calls, one-off |
 
-<sub>2,089 lines of Lua · 76.5 KB packaged · no bundled libraries</sub>
+<sub>2,321 lines of Lua · 85.4 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 

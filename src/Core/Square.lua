@@ -48,6 +48,7 @@ local applying = false      -- reentrancy guard for our own hooks
 local initialized = false
 local active = false
 local trackerDetached = false
+local hiddenByUs = {}       -- [widget key] = true, so Show() is only undone by us
 local original = nil        -- captured Blizzard state; nil until first Apply
 
 --------------------------------------------------------------------------------
@@ -90,37 +91,40 @@ Square.Resolve = Resolve
 Square.WIDGETS = {
     { key = "tracking", label = "Tracking", default = "corner",
       paths = { "MinimapCluster.TrackingFrame", "MinimapCluster.Tracking" },
-      point = "TOPLEFT", x = 2, y = -2 },
+      point = "TOPLEFT", x = 2, y = 2 },
 
     { key = "difficulty", label = "Dungeon difficulty", default = "corner",
       paths = { "MinimapCluster.InstanceDifficulty" },
-      point = "TOPLEFT", x = 2, y = -34 },
+      point = "TOPLEFT", x = 2, y = 34 },
 
     { key = "indicators", label = "Mail and crafting orders", default = "corner",
       paths = { "MinimapCluster.IndicatorFrame" },
       point = "BOTTOMLEFT", x = 2, y = 2 },
 
-    { key = "queueStatus", label = "Group finder eye", default = "grid",
+    -- On the map rather than in the grid: the eye is a status light as much as
+    -- a button, and it is no use in a grid that can be hidden. Its free corner
+    -- is the bottom right, since the expansion button defaults to the grid.
+    { key = "queueStatus", label = "Group finder eye", default = "corner",
       paths = { "QueueStatusButton", "QueueStatusMinimapButton" },
-      point = "BOTTOMLEFT", x = 2, y = 34 },
+      point = "BOTTOMRIGHT", x = 2, y = 2 },
 
     { key = "calendar", label = "Calendar", default = "grid",
       paths = { "GameTimeFrame" },
-      point = "TOPRIGHT", x = -2, y = -2 },
+      point = "TOPRIGHT", x = 2, y = 2 },
 
     -- The expansion landing page button. Blizzard renames what it opens every
     -- expansion - it is the Omnium Folio in Midnight - but the frame is stable.
     { key = "expansion", label = "Omnium Folio (expansion button)", default = "grid",
       paths = { "ExpansionLandingPageMinimapButton", "GarrisonLandingPageMinimapButton" },
-      point = "BOTTOMRIGHT", x = -2, y = 2 },
+      point = "BOTTOMRIGHT", x = 2, y = 2 },
 
     { key = "compartment", label = "Addon compartment", default = "grid",
       paths = { "AddonCompartmentFrame" },
-      point = "TOPRIGHT", x = -2, y = -34 },
+      point = "TOPRIGHT", x = 2, y = 34 },
 
     { key = "worldMap", label = "World map button", default = "grid",
       paths = { "MiniMapWorldMapButton" },
-      point = "BOTTOMRIGHT", x = -2, y = 34 },
+      point = "BOTTOMRIGHT", x = 2, y = 34 },
 
     { key = "clock", label = "Clock", default = "hidden",
       paths = { "TimeManagerClockButton" },
@@ -144,6 +148,74 @@ local function ModeFor(widget)
 end
 
 Square.ModeFor = ModeFor
+
+-- Anchors a corner widget can be pinned to. CENTER is included so a widget can
+-- be put anywhere on the map rather than only near an edge.
+Square.WIDGET_POINTS = {
+    { key = "TOPLEFT", label = "Top left" },
+    { key = "TOPRIGHT", label = "Top right" },
+    { key = "BOTTOMLEFT", label = "Bottom left" },
+    { key = "BOTTOMRIGHT", label = "Bottom right" },
+    { key = "CENTER", label = "Centre" },
+}
+
+Square.WIDGET_SCALE_MIN = 0.5
+Square.WIDGET_SCALE_MAX = 2.5
+Square.WIDGET_OFFSET_MAX = 300
+
+-- Where a corner widget sits and how big it is. Config holds sparse overrides;
+-- anything absent falls back to the widget's own default, so a widget gains
+-- sensible placement the moment it is added to the table above.
+--
+-- Offsets are stored as positive insets measured inward from the anchor, and
+-- the sign is derived here. That is what lets one pair of sliders read the same
+-- way ("24 across, 40 down") regardless of which corner the widget is pinned to
+-- - storing raw signed offsets would flip their meaning per corner.
+local function LayoutFor(widget)
+    local override = (PMM.Config.widgetLayout or {})[widget.key] or {}
+    local point = override.point or widget.point
+    -- 0 is a meaningful offset, so test for nil rather than falsiness.
+    local x = override.x
+    if x == nil then x = widget.x end
+    local y = override.y
+    if y == nil then y = widget.y end
+    local scale = override.scale or 1
+
+    local signX = string.find(point, "RIGHT") and -1 or 1
+    local signY = string.find(point, "TOP") and -1 or 1
+
+    return point, x * signX, y * signY, scale
+end
+
+Square.LayoutFor = LayoutFor
+
+-- Defaults, in the same positive-inset form the settings page edits.
+function Square:DefaultLayout(widget)
+    return { point = widget.point, x = widget.x, y = widget.y, scale = 1 }
+end
+
+function Square:GetLayout(widget)
+    local override = (PMM.Config.widgetLayout or {})[widget.key] or {}
+    local defaults = self:DefaultLayout(widget)
+    return {
+        point = override.point or defaults.point,
+        x = override.x == nil and defaults.x or override.x,
+        y = override.y == nil and defaults.y or override.y,
+        scale = override.scale or defaults.scale,
+    }
+end
+
+function Square:SetLayout(widget, field, value)
+    local layout = PMM.Config.widgetLayout
+    layout[widget.key] = layout[widget.key] or {}
+    layout[widget.key][field] = value
+    PMM.Config:Save()
+end
+
+function Square:ResetLayout(widget)
+    PMM.Config.widgetLayout[widget.key] = nil
+    PMM.Config:Save()
+end
 
 -- Textures and frames that only make sense around a circle.
 local ROUND_ART = {
@@ -475,15 +547,28 @@ function Square:Apply()
 
             if mode == "hidden" then
                 frame:Hide()
-            elseif mode == "grid" and Buttons and Buttons:AdoptExternal(frame) then
-                frame:Show()
+                hiddenByUs[widget.key] = true
             else
-                -- Either the user asked for a corner, or the grid declined it
-                -- (collection switched off, or a protected frame refusing to be
-                -- reparented mid-combat). A corner is always a safe answer.
-                frame:Show()
-                RawClearAllPoints(frame)
-                RawSetPoint(frame, widget.point, minimap, widget.point, widget.x, widget.y)
+                -- Only undo a hide we performed. Several of these widgets are
+                -- contextual - the difficulty flag outside an instance, the mail
+                -- icon with an empty mailbox, the eye when not queued - and
+                -- showing them unconditionally would pin them on screen
+                -- permanently, which is the opposite of tidying up.
+                if hiddenByUs[widget.key] then
+                    frame:Show()
+                    hiddenByUs[widget.key] = nil
+                end
+
+                if not (mode == "grid" and Buttons and Buttons:AdoptExternal(frame)) then
+                    -- Either the user asked for a corner, or the grid declined
+                    -- it (collection switched off, or a protected frame
+                    -- refusing to be reparented mid-combat). A corner is always
+                    -- a safe answer.
+                    local point, offsetX, offsetY, scale = LayoutFor(widget)
+                    frame:SetScale(scale)
+                    RawClearAllPoints(frame)
+                    RawSetPoint(frame, point, minimap, point, offsetX, offsetY)
+                end
             end
         end
     end
@@ -567,6 +652,8 @@ function Square:Restore()
             if snapshot.shown then frame:Show() else frame:Hide() end
         end
     end
+
+    hiddenByUs = {}
 
     if original.tracker and trackerDetached then
         local tracker = _G.ObjectiveTrackerFrame
