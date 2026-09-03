@@ -71,14 +71,31 @@ local IGNORE_EXACT = {
     MinimapMailFrame = true,
 }
 
--- This addon's own furniture. Named explicitly rather than by a "^Peavers"
--- pattern: that pattern also swallowed PeaversGetThereMinimapButton and every
--- other sibling addon's button, which are exactly what we are here to collect.
+-- This addon's own furniture, by name. A "^Peavers" pattern would be shorter
+-- but it also swallowed PeaversGetThereMinimapButton and every other sibling
+-- addon's button, which are exactly what we are here to collect.
 local IGNORE_SELF = {
     PeaversMiniMapButtonBar = true,
     PeaversMiniMapButtonToggle = true,
     PeaversMiniMapBorder = true,
+    PeaversMiniMapPositionOverlay = true,
 }
+
+-- Belt and braces for the same problem: any frame this addon parents to the
+-- minimap carries a mark, so it is skipped whatever it ends up being called and
+-- whatever size it happens to be. The name list above only catches the frames
+-- that have names; the drag handles do not.
+--
+-- Underscore-prefixed deliberately. It reads as a private field, and it is the
+-- convention the perf harness's widget stubs rely on to tell an unset field from
+-- their catch-all - without it, an unset flag reads back as a function and every
+-- frame looks like ours.
+local OWNED = "_peaversMiniMapOwned"
+
+function Buttons.MarkOwned(frame)
+    if frame then frame[OWNED] = true end
+    return frame
+end
 
 -- Anything matching one of these is either Blizzard's or another button bar's.
 -- Collecting a rival bar's container would nest one grid inside another.
@@ -125,6 +142,7 @@ local active = false
 local function IsCollectible(frame)
     if not frame or collected[frame] then return false end
     if frame == bar or frame == toggle then return false end
+    if frame[OWNED] then return false end
     if not frame.GetObjectType then return false end
 
     local objectType = frame:GetObjectType()
@@ -347,14 +365,14 @@ local GROW = {
 local function EnsureBar()
     if bar then return bar end
 
-    bar = CreateFrame("Frame", "PeaversMiniMapButtonBar", _G.MinimapCluster, "BackdropTemplate")
+    bar = Buttons.MarkOwned(CreateFrame("Frame", "PeaversMiniMapButtonBar", _G.MinimapCluster, "BackdropTemplate"))
     bar:SetFrameStrata("MEDIUM")
     bar:SetClampedToScreen(true)
     bar:Hide()
 
     -- An explicit affordance rather than a hidden right-click on the map: the
     -- user can see that there is something to open.
-    toggle = CreateFrame("Button", "PeaversMiniMapButtonToggle", _G.Minimap, "BackdropTemplate")
+    toggle = Buttons.MarkOwned(CreateFrame("Button", "PeaversMiniMapButtonToggle", _G.Minimap, "BackdropTemplate"))
     toggle:SetSize(16, 16)
     toggle:SetFrameStrata("MEDIUM")
     toggle:SetFrameLevel(_G.Minimap:GetFrameLevel() + 10)

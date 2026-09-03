@@ -288,33 +288,69 @@ function ConfigUI:BuildBlizzardPage(parentFrame)
     end
 
     --------------------------------------------------------------------------
-    -- Placement editor
+    -- Placement
     --
-    -- One set of controls that edits whichever widget is picked, rather than
-    -- four controls per widget stacked down a very long page. Populating the
-    -- controls has to be guarded: the shared slider fires onChange from
-    -- SetValue, so an unguarded refresh would write the value it just read
-    -- back into the config of whichever widget was selected before.
+    -- Dragging on the map is the answer to "where should this go?"; the sliders
+    -- below are the answer to "two pixels left, please". Leading with the
+    -- sliders made people reason in corners and offsets to solve a problem they
+    -- could see on screen the whole time.
     --------------------------------------------------------------------------
 
-    local _, placeY = W:CreateSectionHeader(parentFrame, "Placement", indent, y)
+    local _, placeY = W:CreateSectionHeader(parentFrame, "Position things on the map", indent, y)
     y = placeY - 8
 
-    local placeHint = W:CreateLabel(parentFrame,
-        "Position and size anything set to sit on the map's corner. Offsets " ..
-            "measure inward from the anchor, so they read the same way whichever " ..
-            "corner you pick.",
-        { font = "GameFontNormalSmall", color = { 0.7, 0.7, 0.7 } })
-    placeHint:SetPoint("TOPLEFT", indent, y)
-    placeHint:SetWidth(width)
-    y = y - 44
-
     local Square = PMM.Square
+    local Positioner = PMM.Positioner
+
+    local unlockButton
+    local function UnlockLabel()
+        return Positioner:IsUnlocked() and "Done - lock positions" or "Move things on the map"
+    end
+
+    unlockButton = W:CreateButton(parentFrame, UnlockLabel(), {
+        width = width,
+        height = 30,
+        variant = "primary",
+        onClick = function()
+            Positioner:Toggle()
+            unlockButton:SetLabel(UnlockLabel())
+        end,
+    })
+    unlockButton:SetPoint("TOPLEFT", indent, y)
+    y = y - 38
+
+    local unlockHint = W:CreateLabel(parentFrame,
+        "Puts a handle over every icon on the minimap. Drag one to move it, " ..
+            "scroll it to resize, right-click to put it back. Icons that are " ..
+            "normally only there some of the time - the difficulty flag, the " ..
+            "mail icon, the group finder eye - are shown while you do this so " ..
+            "you can place them without waiting for a dungeon or a queue.",
+        { font = "GameFontNormalSmall", color = { 0.7, 0.7, 0.7 } })
+    unlockHint:SetPoint("TOPLEFT", indent, y)
+    unlockHint:SetWidth(width)
+    y = y - 68
+
+    --------------------------------------------------------------------------
+    -- Fine tuning
+    --
+    -- Populating the controls has to be guarded: the shared slider fires
+    -- onChange from SetValue, so an unguarded refresh would write the value it
+    -- just read back into whichever widget was selected before.
+    --------------------------------------------------------------------------
+
+    local _, fineY = W:CreateSectionHeader(parentFrame, "Fine tuning", indent, y)
+    y = fineY - 8
+
+    local fineHint = W:CreateLabel(parentFrame,
+        "Only if you want exact numbers. Offsets measure inward from the anchor.",
+        { font = "GameFontNormalSmall", color = { 0.5, 0.5, 0.5 } })
+    fineHint:SetPoint("TOPLEFT", indent, y)
+    fineHint:SetWidth(width)
+    y = y - 28
+
     local updatingUI = false
     local selected = Square.WIDGETS[1]
     for _, widget in ipairs(Square.WIDGETS) do
-        -- Default the picker to the difficulty flag: it is the one that most
-        -- wants moving, being the only widget that overlaps the map's contents.
         if widget.key == "difficulty" then selected = widget end
     end
 
@@ -416,16 +452,7 @@ function ConfigUI:BuildBlizzardPage(parentFrame)
         end,
     })
     resetButton:SetPoint("TOPLEFT", indent, y)
-    y = y - 34
-
-    local placeNote = W:CreateLabel(parentFrame,
-        "The difficulty flag, mail icon and group finder eye only appear when " ..
-            "they have something to say, so you may need to be in an instance " ..
-            "or queue to see a change.",
-        { font = "GameFontNormalSmall", color = { 0.5, 0.5, 0.5 } })
-    placeNote:SetPoint("TOPLEFT", indent, y)
-    placeNote:SetWidth(width)
-    y = y - 50
+    y = y - 42
 
     local _, trackerY = W:CreateSectionHeader(parentFrame, "Objective tracker", indent, y)
     y = trackerY - 8

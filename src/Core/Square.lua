@@ -288,6 +288,8 @@ local function CaptureOriginal()
                 parent = frame:GetParent(),
                 scale = frame:GetScale(),
                 shown = frame:IsShown(),
+                strata = frame:GetFrameStrata(),
+                level = frame:GetFrameLevel(),
             }
         end
     end
@@ -330,7 +332,8 @@ end
 local function EnsureBorder()
     if Square.border then return Square.border end
 
-    local border = CreateFrame("Frame", "PeaversMiniMapBorder", _G.Minimap, "BackdropTemplate")
+    local border = PMM.Buttons.MarkOwned(
+        CreateFrame("Frame", "PeaversMiniMapBorder", _G.Minimap, "BackdropTemplate"))
     border:SetFrameStrata(_G.Minimap:GetFrameStrata())
     border:SetFrameLevel(math.max(_G.Minimap:GetFrameLevel() - 1, 0))
     border:EnableMouse(false)
@@ -566,6 +569,17 @@ function Square:Apply()
                     -- a safe answer.
                     local point, offsetX, offsetY, scale = LayoutFor(widget)
                     frame:SetScale(scale)
+
+                    -- These widgets are siblings of Minimap under
+                    -- MinimapCluster, not children of it, so draw order is
+                    -- decided by frame level. Blizzard parked them outside the
+                    -- circle where that never mattered; moved onto a square map
+                    -- they render behind the map art and simply vanish. Raising
+                    -- them above the map is what makes any on-map position
+                    -- usable at all.
+                    frame:SetFrameStrata(minimap:GetFrameStrata())
+                    frame:SetFrameLevel(minimap:GetFrameLevel() + 6)
+
                     RawClearAllPoints(frame)
                     RawSetPoint(frame, point, minimap, point, offsetX, offsetY)
                 end
@@ -597,6 +611,9 @@ function Square:Apply()
     applying = false
 
     if PMM.Buttons then PMM.Buttons:Layout() end
+    if PMM.Positioner and PMM.Positioner:IsUnlocked() then
+        PMM.Positioner:RefreshHandles()
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -649,6 +666,8 @@ function Square:Restore()
             end
             RestorePoints(frame, snapshot.points)
             frame:SetScale(snapshot.scale or 1)
+            if snapshot.strata then frame:SetFrameStrata(snapshot.strata) end
+            if snapshot.level then frame:SetFrameLevel(snapshot.level) end
             if snapshot.shown then frame:Show() else frame:Hide() end
         end
     end

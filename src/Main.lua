@@ -33,6 +33,12 @@ PeaversCommons.SlashCommands:Register(addonName, "pmm", {
         PMM.Square:Apply()
         Utils.Print(PMM, "Minimap size set to " .. PMM.Config.size .. ".")
     end,
+    unlock = function()
+        local nowUnlocked = PMM.Positioner:Toggle()
+        if not nowUnlocked then
+            Utils.Print(PMM, "Positions locked.")
+        end
+    end,
     scan = function()
         local found = PMM.Buttons:Scan()
         PMM.Buttons:Layout()
@@ -66,6 +72,7 @@ PeaversCommons.SlashCommands:Register(addonName, "pmm", {
         print("  /pmm enable - Square the minimap and collect addon buttons")
         print("  /pmm disable - Restore Blizzard's minimap exactly as it was")
         print("  /pmm size N - Set the square's edge length in pixels")
+        print("  /pmm unlock - Drag the map's icons around on the map itself")
         print("  /pmm scan - Look for addon buttons that appeared late")
         print("  /pmm buttons - List the collected buttons")
         print("  /pmm info - Print minimap diagnostics")

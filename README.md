@@ -11,7 +11,7 @@ A World of Warcraft addon that turns the minimap into a clean square pinned to a
 - Square minimap, pinned to whichever screen corner you choose
 - Addon buttons collected into a grid that they cannot wander out of
 - Blizzard's own buttons too - calendar, Omnium Folio, addon compartment - each one into the grid, onto a corner, or gone
-- The group finder eye and difficulty flag can be pinned to any corner of the map and resized
+- Drag the map's icons around on the map itself - no guessing at corners and offsets
 - Stops the quest tracker being dragged across the screen with the minimap
 - Adjustable size, scale and border, with the zoom buttons and clock hidden by default
 - Fully reversible: turning it off restores Blizzard's minimap exactly, with no reload
@@ -46,7 +46,13 @@ A round minimap had room around its edge for the calendar, the group finder eye,
 
 The calendar, Omnium Folio, addon compartment and world map button default to the grid. Tracking, mail, the difficulty flag and the group finder eye stay on the map, because they are status lights as much as buttons and are no use in a grid you can hide. The clock and zoom buttons default to hidden.
 
-Anything sitting on the map can be placed and resized from the **Placement** controls on the same page: pick the widget, pick a corner (or the centre), then nudge it with the offset sliders and size it with the scale slider. Offsets measure inward from the anchor, so the same numbers read the same way whichever corner you choose. Bear in mind the difficulty flag, mail icon and eye only appear when they have something to say - you may need to be in an instance or a queue to see a change.
+### Moving things around on the map
+
+Press **Move things on the map** (or `/pmm unlock`) and every icon on the minimap gets a handle. Drag one to move it, scroll it to resize, right-click to put it back. Press the button again when you are done.
+
+Icons that are normally only there some of the time - the difficulty flag, the mail icon, the group finder eye - are shown while you are moving things, so you can place them without waiting for a dungeon or a queue.
+
+Dragging is engine-side, so it costs nothing per frame; the numbers below are measured with the handles up as well as down. If you want exact values instead, the **Fine tuning** controls on the same page take an anchor, two offsets and a size.
 
 ### The quest tracker
 
@@ -67,7 +73,7 @@ It also takes work away. Collected buttons lose their drag handlers, which is wh
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 85.4 KB | 110 KB | pass |
+| Packaged size | 100.1 KB | 110 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
 | Widget calls per frame | 0 | 0 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
@@ -76,14 +82,15 @@ Scenarios driven against the real addon source, outside the game:
 
 | Scenario | Calls/frame | Notes |
 |---|---:|---|
-| login: square applied, 34 buttons collected | 0.00 | 875 client calls, one-off |
+| unlock and lock the drag handles | 0.00 | 110 client calls, one-off |
+| login: square applied, 34 buttons collected | 0.00 | 883 client calls, one-off |
 | 10 addons register buttons in one frame | 0.00 | 335 client calls, 1 coalesced layout pass, 44 buttons in the grid |
 | steady state, 144fps | 0.00 | 0 OnUpdate handler(s) across 144 frames; 0 tick(s) |
 | steady state, 60fps | 0.00 | 0 OnUpdate handler(s) across 60 frames; 0 tick(s) |
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
-| disable and restore Blizzard's minimap | 0.00 | 490 client calls, one-off |
+| disable and restore Blizzard's minimap | 0.00 | 508 client calls, one-off |
 
-<sub>2,321 lines of Lua · 85.4 KB packaged · no bundled libraries</sub>
+<sub>2,712 lines of Lua · 100.1 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
