@@ -22,6 +22,5 @@ src\Utils\Patrons.lua
 
 src\Core\Square.lua
 src\Core\Buttons.lua
-src\Core\Positioner.lua
 
 src\Main.lua

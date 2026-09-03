@@ -78,13 +78,12 @@ local IGNORE_SELF = {
     PeaversMiniMapButtonBar = true,
     PeaversMiniMapButtonToggle = true,
     PeaversMiniMapBorder = true,
-    PeaversMiniMapPositionOverlay = true,
 }
 
 -- Belt and braces for the same problem: any frame this addon parents to the
 -- minimap carries a mark, so it is skipped whatever it ends up being called and
--- whatever size it happens to be. The name list above only catches the frames
--- that have names; the drag handles do not.
+-- whatever size it happens to be. Names and the size gate both nearly failed to
+-- exclude our own furniture once already.
 --
 -- Underscore-prefixed deliberately. It reads as a private field, and it is the
 -- convention the perf harness's widget stubs rely on to tell an unset field from

@@ -611,9 +611,6 @@ function Square:Apply()
     applying = false
 
     if PMM.Buttons then PMM.Buttons:Layout() end
-    if PMM.Positioner and PMM.Positioner:IsUnlocked() then
-        PMM.Positioner:RefreshHandles()
-    end
 end
 
 --------------------------------------------------------------------------------

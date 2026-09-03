@@ -279,7 +279,6 @@ PMM.Config = {
 
 assert(loadfile(ADDON_DIR .. "/src/Core/Square.lua"))("PeaversMiniMap", PMM)
 assert(loadfile(ADDON_DIR .. "/src/Core/Buttons.lua"))("PeaversMiniMap", PMM)
-assert(loadfile(ADDON_DIR .. "/src/Core/Positioner.lua"))("PeaversMiniMap", PMM)
 
 --------------------------------------------------------------------------------
 -- Drive a login
@@ -417,43 +416,6 @@ assert(difficulty:GetFrameLevel() > Minimap:GetFrameLevel(),
     "a widget placed on the map must draw above it, or it vanishes behind the map art")
 
 --------------------------------------------------------------------------------
--- Where a dragged widget lands
---
--- Pure arithmetic, asserted directly: this is the rule that turns a drop
--- position into a corner plus an inset, and an inverted sign here would send
--- every dragged icon to the opposite side of the map.
---------------------------------------------------------------------------------
-
-local ResolveAnchor = PMM.Positioner.ResolveAnchor
-local MAP = { left = 0, bottom = 0, width = 200, height = 200 }
-
-local function CheckDrop(label, left, bottom, wantPoint, wantX, wantY)
-    local point, insetX, insetY = ResolveAnchor(MAP, { left = left, bottom = bottom, width = 26, height = 26 })
-    assert(point == wantPoint and insetX == wantX and insetY == wantY,
-        string.format("%s: got %s %d,%d, wanted %s %d,%d",
-            label, point, insetX, insetY, wantPoint, wantX, wantY))
-end
-
-CheckDrop("dropped top left", 4, 170, "TOPLEFT", 4, 4)
-CheckDrop("dropped top right", 170, 170, "TOPRIGHT", 4, 4)
-CheckDrop("dropped bottom left", 4, 4, "BOTTOMLEFT", 4, 4)
-CheckDrop("dropped bottom right", 170, 4, "BOTTOMRIGHT", 4, 4)
--- Dragged off the edge: snapped back onto the map rather than stored somewhere
--- the user cannot reach it again.
-CheckDrop("dropped off the left edge", -40, 4, "BOTTOMLEFT", 0, 4)
-CheckDrop("dropped off the top", 4, 260, "TOPLEFT", 4, 0)
-
--- Every drag handler is gone, so no collected button can start an OnUpdate.
-local dragHandlersLeft = 0
-for _, button in ipairs(addonButtons) do
-    if button:GetScript("OnDragStart") or button:GetScript("OnDragStop") then
-        dragHandlersLeft = dragHandlersLeft + 1
-    end
-end
-assert(dragHandlersLeft == 0,
-    dragHandlersLeft .. " collected buttons kept their drag handler")
-
---------------------------------------------------------------------------------
 -- Scenario 1: steady state
 --
 -- Collect every OnUpdate handler on every frame the addon created, plus the
@@ -589,33 +551,6 @@ local function MeasureRestore()
     }
 end
 
---------------------------------------------------------------------------------
--- Scenario: the drag handles
---
--- Dragging leans on StartMoving, which the client runs itself. If somebody ever
--- reaches for an OnUpdate to follow the cursor instead, this stops being zero.
---------------------------------------------------------------------------------
-
-local function MeasurePositioner()
-    Stubs.ResetCounts()
-    PMM.Positioner:Unlock()
-
-    local handlers = CollectOnUpdateHandlers()
-    assert(#handlers == 0,
-        "unlocking installed " .. #handlers .. " OnUpdate handler(s); dragging must stay engine-side")
-
-    local calls = Stubs.TotalCalls()
-    PMM.Positioner:Lock()
-    FlushTimers(0)
-
-    return {
-        name = "unlock and lock the drag handles",
-        callsPerFrame = 0,
-        notes = calls .. " client calls, one-off",
-    }
-end
-
-local positioner = MeasurePositioner()
 local burst = MeasureBurst()
 local steady = MeasureSteadyState("steady state, 144fps", 144, 144)
 local steady60 = MeasureSteadyState("steady state, 60fps", 60, 60)
@@ -623,7 +558,6 @@ local idle = MeasureIdle(144)
 local restore = MeasureRestore()
 
 return {
-    positioner,
     {
         name = "login: square applied, " .. (BUTTON_COUNT + #GRID_WIDGETS) .. " buttons collected",
         callsPerFrame = 0,
