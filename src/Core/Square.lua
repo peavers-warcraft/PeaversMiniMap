@@ -334,7 +334,7 @@ local function EnsureBorder()
     if Square.border then return Square.border end
 
     local border = PMM.Buttons.MarkOwned(
-        CreateFrame("Frame", "PeaversMiniMapBorder", _G.Minimap, "BackdropTemplate"))
+        CreateFrame("Frame", nil, _G.Minimap, "BackdropTemplate"))
     border:SetFrameStrata(_G.Minimap:GetFrameStrata())
     border:SetFrameLevel(math.max(_G.Minimap:GetFrameLevel() - 1, 0))
     border:EnableMouse(false)

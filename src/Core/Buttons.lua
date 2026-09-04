@@ -71,19 +71,18 @@ local IGNORE_EXACT = {
     MinimapMailFrame = true,
 }
 
--- This addon's own furniture, by name. A "^Peavers" pattern would be shorter
--- but it also swallowed PeaversGetThereMinimapButton and every other sibling
--- addon's button, which are exactly what we are here to collect.
-local IGNORE_SELF = {
-    PeaversMiniMapButtonBar = true,
-    PeaversMiniMapButtonToggle = true,
-    PeaversMiniMapBorder = true,
-}
-
--- Belt and braces for the same problem: any frame this addon parents to the
--- minimap carries a mark, so it is skipped whatever it ends up being called and
--- whatever size it happens to be. Names and the size gate both nearly failed to
--- exclude our own furniture once already.
+-- This addon's own furniture is anonymous: a named frame built from a template
+-- also publishes a global for every named child the template defines, and none
+-- of these three names is ever resolved by string, so the names bought nothing
+-- but _G pollution.
+--
+-- That is also why the exclusion below is a mark rather than a name list. Any
+-- frame this addon parents to the minimap carries it, so it is skipped whatever
+-- it ends up being called and whatever size it happens to be. Names and the
+-- size gate both nearly failed to exclude our own furniture once already, and a
+-- "^Peavers" pattern is not the answer either -- it swallows
+-- PeaversGetThereMinimapButton and every other sibling addon's button, which
+-- are exactly what we are here to collect.
 --
 -- Underscore-prefixed deliberately. It reads as a private field, and it is the
 -- convention the perf harness's widget stubs rely on to tell an unset field from
@@ -123,7 +122,7 @@ local IGNORE_PATTERNS = {
 local MIN_EDGE, MAX_EDGE = 12, 52
 
 local function IsIgnoredName(name)
-    if IGNORE_EXACT[name] or IGNORE_SELF[name] then return true end
+    if IGNORE_EXACT[name] then return true end
     for _, pattern in ipairs(IGNORE_PATTERNS) do
         if string.match(name, pattern) then return true end
     end
@@ -364,14 +363,14 @@ local GROW = {
 local function EnsureBar()
     if bar then return bar end
 
-    bar = Buttons.MarkOwned(CreateFrame("Frame", "PeaversMiniMapButtonBar", _G.MinimapCluster, "BackdropTemplate"))
+    bar = Buttons.MarkOwned(CreateFrame("Frame", nil, _G.MinimapCluster, "BackdropTemplate"))
     bar:SetFrameStrata("MEDIUM")
     bar:SetClampedToScreen(true)
     bar:Hide()
 
     -- An explicit affordance rather than a hidden right-click on the map: the
     -- user can see that there is something to open.
-    toggle = Buttons.MarkOwned(CreateFrame("Button", "PeaversMiniMapButtonToggle", _G.Minimap, "BackdropTemplate"))
+    toggle = Buttons.MarkOwned(CreateFrame("Button", nil, _G.Minimap, "BackdropTemplate"))
     toggle:SetSize(16, 16)
     toggle:SetFrameStrata("MEDIUM")
     toggle:SetFrameLevel(_G.Minimap:GetFrameLevel() + 10)
