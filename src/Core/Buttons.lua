@@ -336,7 +336,7 @@ end
 -- when some other addon has already loaded it.
 local function HookLibDBIcon()
     if not _G.LibStub then return end
-    local ok, lib = pcall(_G.LibStub, "LibDBIcon-1.0", true)
+    local ok, lib = pcall(function() return _G.LibStub("LibDBIcon-1.0", true) end)
     if not ok or not lib or not lib.RegisterCallback then return end
 
     local registered = pcall(lib.RegisterCallback, PMM, "LibDBIcon_IconCreated", function(_, button)

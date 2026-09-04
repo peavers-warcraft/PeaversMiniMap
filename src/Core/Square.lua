@@ -419,7 +419,7 @@ local function DetachObjectiveTracker(config, size)
     if trackerDetached then return end
 
     local tracker = _G.ObjectiveTrackerFrame
-    if not tracker then return end
+    if not tracker or not original then return end
 
     RawClearAllPoints(tracker)
 
@@ -449,15 +449,27 @@ end
 -- Apply
 --------------------------------------------------------------------------------
 
+local function SquareMinimapShape() return "SQUARE" end
+
 -- Tell the ecosystem the map is square. LibDBIcon and friends read this global
 -- to decide how to place buttons around the edge; leaving it round is what makes
 -- third-party buttons scatter off the corners of a square map.
+--
+-- Overwriting a global the API already declares is the documented mechanism
+-- here, not an accident, hence the one suppression - kept to a single assignment
+-- so it covers exactly the line it is meant to.
 local function ApplyShapeGlobal(square)
+    local getter
     if square then
-        _G.GetMinimapShape = function() return "SQUARE" end
+        getter = SquareMinimapShape
     elseif original then
-        _G.GetMinimapShape = original.getMinimapShape
+        getter = original.getMinimapShape
+    else
+        return
     end
+
+    ---@diagnostic disable-next-line: duplicate-set-field
+    _G.GetMinimapShape = getter
 end
 
 function Square:Apply()
@@ -679,12 +691,12 @@ function Square:Restore()
     end
 
     local zoneButton = Resolve("MinimapCluster.ZoneTextButton")
-    if zoneButton and original.zoneText then
-        local snapshot = original.zoneText
-        zoneButton:SetParent(snapshot.parent)
-        RestorePoints(zoneButton, snapshot.points)
-        RawSetSize(zoneButton, snapshot.width, snapshot.height)
-        if snapshot.shown then zoneButton:Show() else zoneButton:Hide() end
+    local zoneSnapshot = original.zoneText
+    if zoneButton and zoneSnapshot then
+        zoneButton:SetParent(zoneSnapshot.parent)
+        RestorePoints(zoneButton, zoneSnapshot.points)
+        RawSetSize(zoneButton, zoneSnapshot.width, zoneSnapshot.height)
+        if zoneSnapshot.shown then zoneButton:Show() else zoneButton:Hide() end
     end
 
     if self.border then self.border:Hide() end

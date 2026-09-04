@@ -13,6 +13,13 @@
 -- somebody adds a ticker later, these numbers stop being zero.
 --------------------------------------------------------------------------------
 
+-- Not addon code: this runs in the harness's fengari VM (Lua 5.3), outside WoW,
+-- against globals the runner injects. Linting it as a WoW addon is a category
+-- error - HARNESS_LIB and ADDON_DIR come from the runner, `unpack` is
+-- deliberately reassigned because fengari is 5.3, and the case overwrites
+-- Blizzard globals on purpose to drive the code under test.
+---@diagnostic disable: undefined-global, deprecated, duplicate-set-field, missing-fields
+
 local Stubs = dofile(HARNESS_LIB .. "/wow-stubs.lua").Install()
 
 -- fengari is Lua 5.3; the addon is written against WoW's Lua 5.1, where unpack

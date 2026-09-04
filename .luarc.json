@@ -20,7 +20,8 @@
     "Libs",
     "libs",
     "tools",
-    ".release"
+    ".release",
+    "perf"
   ],
   "workspace.checkThirdParty": false,
 
