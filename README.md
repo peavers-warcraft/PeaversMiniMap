@@ -1,9 +1,58 @@
 # PeaversMiniMap
 
+[![Ultra Performance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/peavers-warcraft/PeaversMiniMap/master/.github/badges/perf.json)](https://github.com/peavers-warcraft/PeaversMiniMap/actions/workflows/perf.yml)
 [![AddonSentry](https://addonsentry.io/api/public/repos/peavers-warcraft/PeaversMiniMap/badge.svg)](https://addonsentry.io/dashboard/peavers-warcraft/PeaversMiniMap)
-[![Ultra Performance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/peavers-warcraft/PeaversMiniMap/master/.github/badges/perf.json)](#performance)
 
-A World of Warcraft addon that turns the minimap into a clean square pinned to a corner of your screen, and gathers every addon button that scatters itself around the edge into one tidy grid.
+A World of Warcraft addon that squares the minimap, pins it to a corner of the screen, and gathers the addon buttons scattered around its edge into one tidy grid.
+
+Part of the **Peavers Ultra Performance** family: addons that hold themselves to a published budget, measured on every push.
+
+## Measured performance
+
+A minimap addon lays the map out once and then gets out of the way, so the claim
+here is a negative one — **no per-frame work at all**, and nothing left on a timer
+once login has settled. A negative claim is exactly the kind that rots quietly,
+so it is measured rather than asserted. The table below is regenerated on every
+push by the
+[Ultra Performance harness](https://github.com/peavers-code/peavers-warcraft-workflows/tree/master/perf-harness),
+which loads this addon's real source into a Lua VM, drives a full login, then
+hunts down every `OnUpdate` handler the addon installed on any frame it created
+and ticks them for a simulated second. If any number goes outside
+`perf/budget.json`, the build fails.
+
+<!-- perf:begin -->
+
+> Measured on every push by the Ultra Performance harness. The build fails if any number here exceeds the budget in `perf/budget.json`.
+
+| Check | Measured | Budget | |
+|---|---:|---:|:--:|
+| Packaged size | 85.9 KB | 110 KB | pass |
+| Bundled libraries | 0 | 0 | pass |
+| Widget calls per frame | 0 | 0 | pass |
+| Widget calls per second while idle | 0 | 0 | pass |
+
+Scenarios driven against the real addon source, outside the game:
+
+| Scenario | Calls/frame | Notes |
+|---|---:|---|
+| login: square applied, 32 buttons collected | 0.00 | 823 client calls, one-off |
+| 10 addons register buttons in one frame | 0.00 | 326 client calls, 1 coalesced layout pass, 42 buttons in the grid |
+| steady state, 144fps | 0.00 | 0 OnUpdate handler(s) across 144 frames; 0 tick(s) |
+| steady state, 60fps | 0.00 | 0 OnUpdate handler(s) across 60 frames; 0 tick(s) |
+| idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
+| disable and restore Blizzard's minimap | 0.00 | 487 client calls, one-off |
+
+<sub>2,364 lines of Lua · 85.9 KB packaged · no bundled libraries</sub>
+
+<!-- perf:end -->
+
+The zeroes are the whole point, so they are worth explaining:
+
+- **It takes work away as well as avoiding it.** Collected buttons lose their drag handlers, which is what a LibDBIcon button uses to run an `OnUpdate` for as long as you hold one.
+- **Repeated changes cost one pass.** Twenty addons registering buttons during login produce a single layout, not twenty. The coalescing uses a one-shot timer that fires and stops, never a ticker.
+- **A hidden grid is genuinely free.** WoW does not tick hidden frames, so buttons parked in a collapsed grid cost nothing at all.
+- **Reapplies are event driven.** The square survives Edit Mode through hooks that fire only when something else moves the map, so holding the layout costs nothing while nothing is happening.
+- **Login settles to silence.** Three one-shot sweeps catch addons that register late and then stop for good — the harness asserts no timers are left queued afterwards.
 
 ## Features
 
@@ -21,16 +70,21 @@ A World of Warcraft addon that turns the minimap into a clean square pinned to a
 ## Usage
 
 <!-- peavers:usage -->
-The addon squares and repositions the minimap as soon as you log in. Everything else is optional.
+The addon squares and repositions the minimap as soon as you log in. Everything else is optional and lives in the settings, under `/pmm`.
+
+Addon buttons are collected into a grid beside the map. The grid can sit below, above or to either side, and can be shown always, only while the pointer is over the minimap, or behind a small button on the map's corner.
+
+Blizzard's own minimap buttons get the same three choices - in the grid, on a corner of the map, or hidden - from the **Blizzard** settings page, along with position and size for anything sitting on the map.
 
 ### Slash Commands
 
-- `/pmm` - Open the settings
+- `/pmm` - Open settings
 - `/pmm size N` - Set the square's edge length in pixels (100-400)
 - `/pmm scan` - Look for addon buttons that appeared late
 - `/pmm buttons` - List every collected button
 - `/pmm enable` / `/pmm disable` - Turn the addon on, or restore Blizzard's minimap
 - `/pmm info` - Print minimap diagnostics
+<!-- /peavers:usage -->
 
 ### The button grid
 
@@ -53,41 +107,6 @@ Anything sitting on the map can be placed and resized from the **Placement** con
 ### The quest tracker
 
 Blizzard's default layout anchors the objective tracker to the minimap, so pinning the map to a corner drags the quest list along with it. The addon gives the tracker an anchor of its own the first time it moves the map, which leaves it where it was - and you can still move it in Edit Mode afterwards. Set it back to "let it follow the minimap" if you would rather Blizzard kept control.
-<!-- /peavers:usage -->
-
-## Performance
-
-PeaversMiniMap is part of the Ultra Performance programme: it declares a budget, and the build fails when a measurement exceeds it. Nothing below is an estimate - every number is regenerated from the real source on every push.
-
-The claim this addon makes is a negative one. It lays the minimap out once and then gets out of the way: no `OnUpdate` handler anywhere, no repeating ticker, and no queued work left over once login has settled. Layout runs when something actually changes, and several changes in the same frame are coalesced into a single pass.
-
-It also takes work away. Collected buttons lose their drag handlers, which is what a LibDBIcon button uses to run an `OnUpdate` for as long as you hold it, and a button parked in a hidden grid is not ticked by the client at all.
-
-<!-- perf:begin -->
-
-> Measured on every push by the Ultra Performance harness. The build fails if any number here exceeds the budget in `perf/budget.json`.
-
-| Check | Measured | Budget | |
-|---|---:|---:|:--:|
-| Packaged size | 85 KB | 110 KB | pass |
-| Bundled libraries | 0 | 0 | pass |
-| Widget calls per frame | 0 | 0 | pass |
-| Widget calls per second while idle | 0 | 0 | pass |
-
-Scenarios driven against the real addon source, outside the game:
-
-| Scenario | Calls/frame | Notes |
-|---|---:|---|
-| login: square applied, 32 buttons collected | 0.00 | 823 client calls, one-off |
-| 10 addons register buttons in one frame | 0.00 | 326 client calls, 1 coalesced layout pass, 42 buttons in the grid |
-| steady state, 144fps | 0.00 | 0 OnUpdate handler(s) across 144 frames; 0 tick(s) |
-| steady state, 60fps | 0.00 | 0 OnUpdate handler(s) across 60 frames; 0 tick(s) |
-| idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
-| disable and restore Blizzard's minimap | 0.00 | 487 client calls, one-off |
-
-<sub>2,364 lines of Lua · 85 KB packaged · no bundled libraries</sub>
-
-<!-- perf:end -->
 
 ## Installation
 
