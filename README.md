@@ -42,7 +42,7 @@ Scenarios driven against the real addon source, outside the game:
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
 | disable and restore Blizzard's minimap | 0.00 | 487 client calls, one-off |
 
-<sub>2,364 lines of Lua · 85 KB packaged · no bundled libraries</sub>
+<sub>2,363 lines of Lua · 85 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
