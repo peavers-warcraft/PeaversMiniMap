@@ -19,19 +19,19 @@ local PMM_DEFAULTS = {
 
     -- Shape and size
     squareShape = true,
-    size = 200,
+    size = 155,
     scale = 1.0,
-    borderSize = 2,
+    borderSize = 0,
     borderColor = { r = 0, g = 0, b = 0, a = 1 },
 
     -- Position. anchorEnabled = false hands the minimap back to Edit Mode.
     anchorEnabled = true,
     anchor = "TOPRIGHT",
-    offsetX = 12,
-    offsetY = 12,
+    offsetX = 0,
+    offsetY = 0,
 
     -- Blizzard furniture
-    zoneTextMode = "overlay",   -- "overlay" | "above" | "hidden"
+    zoneTextMode = "hidden",    -- "overlay" | "above" | "hidden"
     hideZoomButtons = true,
 
     -- Per-widget disposition, keyed by Square.WIDGETS[].key:
@@ -51,12 +51,12 @@ local PMM_DEFAULTS = {
 
     -- Addon button grid
     collectButtons = true,
-    visibility = "always",      -- "always" | "hover" | "toggle"
-    growDirection = "BOTTOM",   -- "BOTTOM" | "TOP" | "LEFT" | "RIGHT"
+    visibility = "toggle",      -- "always" | "hover" | "toggle"
+    growDirection = "LEFT",     -- "BOTTOM" | "TOP" | "LEFT" | "RIGHT"
     buttonSize = 26,
     buttonSpacing = 2,
-    buttonsPerRow = 6,
-    barBackground = true,
+    buttonsPerRow = 2,
+    barBackground = false,
     barBackgroundAlpha = 0.5,
     excluded = {},              -- [button frame name] = true, left where it is
 

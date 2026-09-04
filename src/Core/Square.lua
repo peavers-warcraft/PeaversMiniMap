@@ -89,36 +89,37 @@ Square.Resolve = Resolve
 -- nothing is skipped silently, which is what keeps this table safe to carry
 -- across patches.
 Square.WIDGETS = {
-    { key = "tracking", label = "Tracking", default = "corner",
+    -- Right-clicking the map still opens the tracking menu, so hiding the
+    -- button costs nothing but the clutter.
+    { key = "tracking", label = "Tracking", default = "hidden",
       paths = { "MinimapCluster.TrackingFrame", "MinimapCluster.Tracking" },
       point = "TOPLEFT", x = 2, y = 2 },
 
     { key = "difficulty", label = "Dungeon difficulty", default = "corner",
       paths = { "MinimapCluster.InstanceDifficulty" },
-      point = "TOPLEFT", x = 2, y = 34 },
+      point = "TOPRIGHT", x = 0, y = 0, scale = 0.75 },
 
     { key = "indicators", label = "Mail and crafting orders", default = "corner",
       paths = { "MinimapCluster.IndicatorFrame" },
-      point = "BOTTOMLEFT", x = 2, y = 2 },
+      point = "TOPLEFT", x = 0, y = 2 },
 
     -- On the map rather than in the grid: the eye is a status light as much as
-    -- a button, and it is no use in a grid that can be hidden. Its free corner
-    -- is the bottom right, since the expansion button defaults to the grid.
+    -- a button, and it is no use in a grid that can be collapsed.
     { key = "queueStatus", label = "Group finder eye", default = "corner",
       paths = { "QueueStatusButton", "QueueStatusMinimapButton" },
-      point = "BOTTOMRIGHT", x = 2, y = 2 },
+      point = "BOTTOMLEFT", x = 0, y = 0 },
 
-    { key = "calendar", label = "Calendar", default = "grid",
+    -- The calendar and the addon compartment both duplicate something you can
+    -- reach elsewhere, so they start out of the way rather than in the grid.
+    { key = "calendar", label = "Calendar", default = "hidden",
       paths = { "GameTimeFrame" },
       point = "TOPRIGHT", x = 2, y = 2 },
 
-    -- The expansion landing page button. Blizzard renames what it opens every
-    -- expansion - it is the Omnium Folio in Midnight - but the frame is stable.
     { key = "expansion", label = "Omnium Folio (expansion button)", default = "grid",
       paths = { "ExpansionLandingPageMinimapButton", "GarrisonLandingPageMinimapButton" },
       point = "BOTTOMRIGHT", x = 2, y = 2 },
 
-    { key = "compartment", label = "Addon compartment", default = "grid",
+    { key = "compartment", label = "Addon compartment", default = "hidden",
       paths = { "AddonCompartmentFrame" },
       point = "TOPRIGHT", x = 2, y = 34 },
 
@@ -179,7 +180,7 @@ local function LayoutFor(widget)
     if x == nil then x = widget.x end
     local y = override.y
     if y == nil then y = widget.y end
-    local scale = override.scale or 1
+    local scale = override.scale or widget.scale or 1
 
     local signX = string.find(point, "RIGHT") and -1 or 1
     local signY = string.find(point, "TOP") and -1 or 1
@@ -191,7 +192,7 @@ Square.LayoutFor = LayoutFor
 
 -- Defaults, in the same positive-inset form the settings page edits.
 function Square:DefaultLayout(widget)
-    return { point = widget.point, x = widget.x, y = widget.y, scale = 1 }
+    return { point = widget.point, x = widget.x, y = widget.y, scale = widget.scale or 1 }
 end
 
 function Square:GetLayout(widget)

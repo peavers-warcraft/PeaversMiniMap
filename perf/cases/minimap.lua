@@ -252,26 +252,26 @@ local PMM = { name = "PeaversMiniMap" }
 PMM.Config = {
     enabled = true,
     squareShape = true,
-    size = 200,
+    size = 155,
     scale = 1.0,
-    borderSize = 2,
+    borderSize = 0,
     borderColor = { r = 0, g = 0, b = 0, a = 1 },
     anchorEnabled = true,
     anchor = "TOPRIGHT",
-    offsetX = 12,
-    offsetY = 12,
-    zoneTextMode = "overlay",
+    offsetX = 0,
+    offsetY = 0,
+    zoneTextMode = "hidden",
     hideZoomButtons = true,
     widgets = {},
     widgetLayout = {},
     objectiveTracker = "detach",
     collectButtons = true,
-    visibility = "always",
-    growDirection = "BOTTOM",
+    visibility = "toggle",
+    growDirection = "LEFT",
     buttonSize = 26,
     buttonSpacing = 2,
-    buttonsPerRow = 6,
-    barBackground = true,
+    buttonsPerRow = 2,
+    barBackground = false,
     barBackgroundAlpha = 0.5,
     excluded = {},
     Save = function() end,
@@ -308,22 +308,31 @@ assert(_G.GetMinimapShape() == "SQUARE", "minimap shape was not squared")
 -- buttons plus those. Naming them here means a widget quietly dropping out of
 -- the table fails the build rather than reappearing on the minimap.
 local GRID_WIDGETS = {
-    _G.GameTimeFrame,                     -- calendar
     _G.ExpansionLandingPageMinimapButton, -- Omnium Folio
-    _G.AddonCompartmentFrame,
     _G.MiniMapWorldMapButton,
+}
+
+-- Everything the shipped defaults take off the map entirely.
+local HIDDEN_WIDGETS = {
+    _G.TimeManagerClockButton,
+    _G.GameTimeFrame,                     -- calendar
+    _G.AddonCompartmentFrame,
+    MinimapCluster.Tracking,              -- right-click the map still tracks
 }
 for _, widget in ipairs(GRID_WIDGETS) do
     assert(PMM.Buttons:IsCollected(widget),
         (widget:GetName() or "?") .. " should have been collected into the grid")
 end
 
--- The clock defaults to hidden, and the map furniture stays on the map. The eye
--- is deliberately among it: it is a status light, and a status light in a grid
--- the user can hide is no use.
-assert(not _G.TimeManagerClockButton:IsShown(), "the clock should default to hidden")
-assert(not PMM.Buttons:IsCollected(MinimapCluster.Tracking),
-    "the tracking button belongs on the map, not in the grid")
+for _, widget in ipairs(HIDDEN_WIDGETS) do
+    assert(not widget:IsShown(),
+        (widget:GetName() or "?") .. " should be hidden by default")
+    assert(not PMM.Buttons:IsCollected(widget),
+        (widget:GetName() or "?") .. " is hidden, so it must not take a grid slot")
+end
+
+-- The eye stays on the map rather than in the grid: it is a status light, and a
+-- status light in a grid the user can collapse is no use.
 assert(not PMM.Buttons:IsCollected(_G.QueueStatusButton),
     "the group finder eye belongs on the map, not in the grid")
 
@@ -361,9 +370,12 @@ local function AnchorOf(frame)
 end
 
 local point, offsetX, offsetY = AnchorOf(difficulty)
-assert(point == "TOPLEFT" and offsetX == 2 and offsetY == -34,
+assert(point == "TOPRIGHT" and offsetX == 0 and offsetY == 0,
     string.format("difficulty default placement was %s %s,%s",
         tostring(point), tostring(offsetX), tostring(offsetY)))
+-- A widget can carry its own default scale, not only a position.
+assert(difficulty:GetScale() == 0.75,
+    "difficulty should pick up its default scale of 0.75, got " .. tostring(difficulty:GetScale()))
 
 PMM.Config.widgetLayout.difficulty = { point = "BOTTOMRIGHT", x = 10, y = 20, scale = 1.5 }
 PMM.Square:Apply()
@@ -386,7 +398,7 @@ PMM.Config.widgetLayout.difficulty = nil
 -- check it lands there too.
 local eye = _G.QueueStatusButton
 point, offsetX, offsetY = AnchorOf(eye)
-assert(point == "BOTTOMRIGHT",
+assert(point == "BOTTOMLEFT",
     "the group finder eye should default to a corner of the map, got " .. tostring(point))
 
 PMM.Config.widgetLayout.queueStatus = { point = "TOPRIGHT", x = 6, y = 6, scale = 1.25 }
@@ -535,7 +547,9 @@ local function MeasureRestore()
 
     assert(PMM.Buttons:Count() == 0, "buttons were not released")
     assert(_G.GetMinimapShape() == "ROUND", "minimap shape was not restored")
-    assert(_G.TimeManagerClockButton:IsShown(), "the clock was not shown again")
+    for _, widget in ipairs(HIDDEN_WIDGETS) do
+        assert(widget:IsShown(), (widget:GetName() or "?") .. " was not shown again")
+    end
     for _, widget in ipairs(GRID_WIDGETS) do
         assert(not PMM.Buttons:IsCollected(widget),
             (widget:GetName() or "?") .. " was not released from the grid")
