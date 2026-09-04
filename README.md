@@ -26,7 +26,7 @@ and ticks them for a simulated second. If any number goes outside
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 85.9 KB | 110 KB | pass |
+| Packaged size | 85 KB | 110 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
 | Widget calls per frame | 0 | 0 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
@@ -42,7 +42,7 @@ Scenarios driven against the real addon source, outside the game:
 | idle, one second at 144fps | 0.00 | 0 handler(s), 0 queued timer(s) |
 | disable and restore Blizzard's minimap | 0.00 | 487 client calls, one-off |
 
-<sub>2,364 lines of Lua · 85.9 KB packaged · no bundled libraries</sub>
+<sub>2,364 lines of Lua · 85 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
