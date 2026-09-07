@@ -83,6 +83,13 @@ PeaversCommons.Events:Init(addonName, function()
     PMM.Buttons:Initialize()
     PMM.Square:Initialize()
 
+    -- After Square and Buttons, whose lists the schema reads. Silently does
+    -- nothing if LibEditMode is missing or the minimap is not an Edit Mode
+    -- system on this build.
+    if PMM.EditMode then
+        PMM.EditMode:Register()
+    end
+
     if PMM.ConfigUI and PMM.ConfigUI.Initialize then
         PMM.ConfigUI:Initialize()
     end
