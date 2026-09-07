@@ -19,6 +19,7 @@ Changelog.lua
 
 src\Utils\Config.lua
 src\Utils\ConfigUI.lua
+src\Utils\EditMode.lua
 src\Utils\Patrons.lua
 
 src\Core\Square.lua
