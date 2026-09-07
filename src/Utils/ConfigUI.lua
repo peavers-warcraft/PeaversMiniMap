@@ -9,8 +9,10 @@ if not PeaversCommons then
     return
 end
 
+local ConfigUIUtils = PeaversCommons.ConfigUIUtils
+
 function ConfigUI:BuildInfoPage(parentFrame)
-    PeaversCommons.ConfigUIUtils.BuildInfoPage(parentFrame, "MiniMap", {
+    ConfigUIUtils.BuildInfoPageWithEditMode(parentFrame, "MiniMap", {
         "Squares the minimap, pins it to a corner of the screen, and gathers " ..
             "the addon buttons that scatter themselves around its edge into a " ..
             "single grid.",
@@ -19,12 +21,6 @@ function ConfigUI:BuildInfoPage(parentFrame)
         { command = "/pmm scan", desc = "look for buttons that appeared late" },
         { command = "/pmm buttons", desc = "list every collected button" },
         { command = "/pmm disable", desc = "restore Blizzard's minimap exactly as it was" },
-
-        { header = "Settings are in Edit Mode" },
-        "Open Edit Mode from the game menu and select the minimap. The settings " ..
-            "open below Blizzard's own dialog for it - shape and size, the " ..
-            "widgets on the map, the button grid, and which collected buttons " ..
-            "belong in it.",
 
         { header = "Everything is reversible" },
         "Every value the addon overwrites is captured before the first change. " ..
@@ -44,6 +40,16 @@ function ConfigUI:BuildInfoPage(parentFrame)
             "frame are coalesced into one pass. It also strips the drag handlers " ..
             "from collected buttons, which removes the per-frame work those run " ..
             "while you hold one.",
+    }, {
+        title = "the minimap",
+        select = "the minimap",
+        reset = function()
+            PMM.Config:Reset()
+            if PMM.ApplySetting then PMM.ApplySetting() end
+            if PeaversCommons.EditModePanel then
+                PeaversCommons.EditModePanel:Refresh()
+            end
+        end,
     })
 end
 
