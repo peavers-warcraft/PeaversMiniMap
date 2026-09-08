@@ -45,6 +45,7 @@ Square.SIZE_MIN = 100
 Square.SIZE_MAX = 400
 
 local applying = false      -- reentrancy guard for our own hooks
+local suspended = false     -- something else is moving the cluster on purpose
 local initialized = false
 local active = false
 local trackerDetached = false
@@ -475,6 +476,7 @@ end
 function Square:Apply()
     local config = PMM.Config
     if not config.enabled then return end
+    if suspended then return end
 
     local minimap = _G.Minimap
     local cluster = _G.MinimapCluster
@@ -766,6 +768,47 @@ end
 
 function Square:IsActive()
     return active
+end
+
+--------------------------------------------------------------------------------
+-- Standing down
+--
+-- Every hook and event above exists to win an argument: Edit Mode, a layout
+-- change and another addon all move the cluster, and this addon's job is to put
+-- it back. That is right for all of them but one - something moving the cluster
+-- *deliberately*, which so far means PeaversShots lifting it onto a capture
+-- stage to photograph it.
+--
+-- It lost that argument invisibly. The SetPoint hook fired on the stage's own
+-- anchor, Reapply landed a frame later and dragged the minimap back to its
+-- corner at its configured scale, and 0.2s after that the shutter caught an
+-- empty stage. Nothing errored: the screenshot was of the right rectangle of a
+-- screen the minimap was no longer standing in.
+--
+-- The guard is here rather than in the hooks because the hooks are not the only
+-- way back in - PLAYER_ENTERING_WORLD, EDIT_MODE_LAYOUTS_UPDATED and
+-- PLAYER_REGEN_ENABLED all call Apply directly. Apply is the one door.
+--------------------------------------------------------------------------------
+
+---Stop re-applying the layout until Resume, leaving the cluster wherever
+---somebody else has put it.
+function Square:Suspend()
+    suspended = true
+end
+
+---Resume, and put the layout back as it was.
+---
+---Unconditionally re-applies rather than trusting whoever suspended to have
+---restored the geometry: they moved the cluster and they are under no obligation
+---to know where it came from. Apply does know.
+function Square:Resume()
+    if not suspended then return end
+    suspended = false
+    if PMM.Config.enabled then self:Apply() end
+end
+
+function Square:IsSuspended()
+    return suspended
 end
 
 function Square:PrintInfo()
