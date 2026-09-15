@@ -6,7 +6,11 @@ local Utils = PeaversCommons.Utils
 
 -- Initialize addon namespace
 PMM.name = addonName
-PMM.version = C_AddOns.GetAddOnMetadata(addonName, "Version") or "1.0.0"
+-- C_AddOns is on every client this ships to, but the bare global it replaced is
+-- the older spelling; taking whichever exists keeps a missing namespace from
+-- erroring on the first line of the addon.
+local GetMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+PMM.version = (GetMetadata and GetMetadata(addonName, "Version")) or "1.0.0"
 
 -- Register slash commands
 PeaversCommons.SlashCommands:Register(addonName, "pmm", {
@@ -108,11 +112,21 @@ PeaversCommons.Events:Init(addonName, function()
     end)
 
     -- Leaving Edit Mode, or switching layout, rewrites the cluster anchor.
-    PeaversCommons.Events:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
-        if PMM.Config.enabled then
-            C_Timer.After(0, function() PMM.Square:Apply() end)
-        end
-    end)
+    --
+    -- Every client this ships to has Edit Mode and this event, Classic included.
+    -- The check is here anyway because the released PeaversCommons registers
+    -- whatever it is given, and an unknown event is a hard error at load rather
+    -- than a quiet no-op - so a future client without it must not take the rest
+    -- of initialisation down with it.
+    local eventUtils = _G.C_EventUtils
+    if not (eventUtils and eventUtils.IsEventValid)
+        or eventUtils.IsEventValid("EDIT_MODE_LAYOUTS_UPDATED") then
+        PeaversCommons.Events:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
+            if PMM.Config.enabled then
+                C_Timer.After(0, function() PMM.Square:Apply() end)
+            end
+        end)
+    end
 
     -- A protected frame can refuse to be reparented during combat, which leaves
     -- a Blizzard widget sitting in a corner instead of the grid. Retry once the

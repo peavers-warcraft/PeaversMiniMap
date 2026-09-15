@@ -89,29 +89,62 @@ Square.Resolve = Resolve
 -- one expansion. The first path that resolves wins; a widget that resolves to
 -- nothing is skipped silently, which is what keeps this table safe to carry
 -- across patches.
+--
+-- The same chain is what carries the table onto the Classic clients. Those
+-- still ship the pre-Dragonflight minimap, where every one of these widgets is
+-- a loose global rather than a child key of MinimapCluster, so the Classic
+-- names are appended after the retail ones under the same widget key. Retail
+-- resolves its own path first and never reaches them; Classic finds nothing at
+-- the retail path and falls through. The keys themselves must not change -
+-- PeaversUI writes settings by them.
+--
+-- An entry in the chain may also be a list of paths rather than one. That is
+-- for the places Classic splits one retail widget into several frames: retail's
+-- InstanceDifficulty is a single container, Classic has a plain difficulty flag
+-- and a separate guild one that shows instead of it in a guild group. A list
+-- wins if any of its paths resolves, and every frame it resolves is moved
+-- together, so one setting still governs what the user sees as one widget.
 Square.WIDGETS = {
-    -- Right-clicking the map still opens the tracking menu, so hiding the
-    -- button costs nothing but the clutter.
+    -- Right-clicking the map still opens the tracking menu on retail, so hiding
+    -- the button costs nothing but the clutter. Classic Era has no tracking
+    -- button at all, only the MiniMapTracking icon for the active tracking
+    -- spell; Anniversary and Mists add MiniMapTrackingButton inside it, which
+    -- is why the container is tried first.
     { key = "tracking", label = "Tracking", default = "hidden",
-      paths = { "MinimapCluster.TrackingFrame", "MinimapCluster.Tracking" },
+      paths = { "MinimapCluster.TrackingFrame", "MinimapCluster.Tracking",
+                "MiniMapTracking", "MiniMapTrackingButton" },
       point = "TOPLEFT", x = 2, y = 2 },
 
+    -- MiniMapChallengeMode is the Mists challenge-mode medal, which takes the
+    -- same spot on the round map. It is absent on the other Classic clients and
+    -- simply resolves to nothing there.
     { key = "difficulty", label = "Dungeon difficulty", default = "corner",
-      paths = { "MinimapCluster.InstanceDifficulty" },
+      paths = { "MinimapCluster.InstanceDifficulty",
+                { "MiniMapInstanceDifficulty", "GuildInstanceDifficulty", "MiniMapChallengeMode" } },
       point = "TOPRIGHT", x = 0, y = 0, scale = 0.75 },
 
+    -- Classic has no crafting orders, so its indicator is only the mail icon.
     { key = "indicators", label = "Mail and crafting orders", default = "corner",
-      paths = { "MinimapCluster.IndicatorFrame" },
+      paths = { "MinimapCluster.IndicatorFrame", "MiniMapMailFrame" },
       point = "TOPLEFT", x = 0, y = 2 },
 
     -- On the map rather than in the grid: the eye is a status light as much as
     -- a button, and it is no use in a grid that can be collapsed.
+    --
+    -- Classic never merged its queues into one eye. The battleground queue and
+    -- the dungeon finder each have their own minimap frame, both contextual, so
+    -- they travel together under the one key. Queued for both at once they
+    -- share the corner; that is rare enough not to earn a setting of its own.
     { key = "queueStatus", label = "Group finder eye", default = "corner",
-      paths = { "QueueStatusButton", "QueueStatusMinimapButton" },
+      paths = { "QueueStatusButton", "QueueStatusMinimapButton",
+                { "MiniMapBattlefieldFrame", "LFGMinimapFrame" } },
       point = "BOTTOMLEFT", x = 0, y = 0 },
 
     -- The calendar and the addon compartment both duplicate something you can
     -- reach elsewhere, so they start out of the way rather than in the grid.
+    -- GameTimeFrame exists on every client (a Frame on Era and Anniversary, a
+    -- Button on Mists); the compartment and the expansion button have no Classic
+    -- counterpart and stay silent no-ops there.
     { key = "calendar", label = "Calendar", default = "hidden",
       paths = { "GameTimeFrame" },
       point = "TOPRIGHT", x = 2, y = 2 },
@@ -133,15 +166,89 @@ Square.WIDGETS = {
       point = "BOTTOM", x = 0, y = 2 },
 }
 
+-- Every frame the widget stands for on this client, in path order. The first
+-- entry in the chain that yields anything wins; a plain string yields at most
+-- one frame, a list yields every one of its paths that resolves.
+local function ResolveWidgetFrames(widget)
+    for _, entry in ipairs(widget.paths) do
+        if type(entry) == "table" then
+            local frames = {}
+            for _, path in ipairs(entry) do
+                local frame = Resolve(path)
+                if frame then frames[#frames + 1] = frame end
+            end
+            if #frames > 0 then return frames end
+        else
+            local frame = Resolve(entry)
+            if frame then return { frame } end
+        end
+    end
+    return nil
+end
+
+Square.ResolveWidgetFrames = ResolveWidgetFrames
+
+-- The widget's first frame and the path it came from. Kept for anything that
+-- only needs to know whether a widget exists on this client.
 local function ResolveWidget(widget)
-    for _, path in ipairs(widget.paths) do
-        local frame = Resolve(path)
-        if frame then return frame, path end
+    for _, entry in ipairs(widget.paths) do
+        local group = type(entry) == "table" and entry or { entry }
+        for _, path in ipairs(group) do
+            local frame = Resolve(path)
+            if frame then return frame, path end
+        end
     end
     return nil
 end
 
 Square.ResolveWidget = ResolveWidget
+
+-- First path that resolves, for the single frames that have moved between the
+-- round-map and the Dragonflight layouts.
+local function ResolveFirst(paths)
+    for _, path in ipairs(paths) do
+        local node = Resolve(path)
+        if node then return node end
+    end
+    return nil
+end
+
+-- Retail hangs the zoom buttons and the zone text off the minimap frames as
+-- child keys; Classic still has them as the globals they always were.
+local ZOOM_IN_PATHS = { "Minimap.ZoomIn", "MinimapZoomIn" }
+local ZOOM_OUT_PATHS = { "Minimap.ZoomOut", "MinimapZoomOut" }
+local ZONE_TEXT_PATHS = { "MinimapCluster.ZoneTextButton", "MinimapZoneTextButton" }
+
+-- Retail's quest list is ObjectiveTrackerFrame. Classic Era and Anniversary
+-- still use QuestWatchFrame, Mists uses WatchFrame, and on all three it is
+-- anchored under MinimapCluster the same way, so the same detach applies.
+local function ResolveTracker()
+    return _G.ObjectiveTrackerFrame or _G.QuestWatchFrame or _G.WatchFrame
+end
+
+-- The mask the round map is drawn through when nothing has touched it. Retail
+-- swapped Classic's engine texture for a portrait mask, and each client only
+-- carries its own: restoring retail's path on Classic leaves the map drawn
+-- through a texture that is not there, which renders it as a square anyway.
+--
+-- Decided by flavour rather than by probing, because there is nothing to probe
+-- - Minimap has no GetMaskTexture. PeaversCommons.Compat answers when it is
+-- loaded; otherwise WOW_PROJECT_ID, which every client defines. Anything that
+-- cannot be identified keeps retail's path, so retail behaves exactly as before.
+local RETAIL_ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local CLASSIC_ROUND_MASK = "Textures\\MinimapMask"
+
+local function RoundMaskTexture()
+    local compat = PeaversCommons.Compat
+    if compat and compat.isRetail ~= nil then
+        return compat.isRetail and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
+    end
+    local project, mainline = _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE
+    if project ~= nil and mainline ~= nil and project ~= mainline then
+        return CLASSIC_ROUND_MASK
+    end
+    return RETAIL_ROUND_MASK
+end
 
 local function ModeFor(widget)
     local widgets = PMM.Config.widgets
@@ -219,13 +326,17 @@ function Square:ResetLayout(widget)
     PMM.Config:Save()
 end
 
--- Textures and frames that only make sense around a circle.
+-- Textures and frames that only make sense around a circle. The list spans
+-- both layouts on purpose: MinimapBorderTop is retail's, MinimapCluster.BorderTop
+-- is present on Classic as well, and MinimapToggleButton is the round map's
+-- close button on the older Classic clients. Whichever do not exist are skipped.
 local ROUND_ART = {
     "MinimapCompassTexture",
     "MinimapBorder",
     "MinimapBorderTop",
     "MinimapNorthTag",
     "MinimapCluster.BorderTop",
+    "MinimapToggleButton",
 }
 
 --------------------------------------------------------------------------------
@@ -246,6 +357,24 @@ local function RestorePoints(frame, points)
     for _, p in ipairs(points) do
         pcall(RawSetPoint, frame, unpack(p))
     end
+end
+
+-- One widget frame's state, keyed by the frame itself. Keying by frame rather
+-- than widget key is what lets a widget stand for several frames on Classic.
+-- Idempotent, so Apply can also call it for a frame that did not exist yet when
+-- the first snapshot was taken - a load-on-demand widget turning up later is
+-- still captured before its first write.
+local function CapturePlacement(frame)
+    if not original or original.placements[frame] then return end
+    original.placements[frame] = {
+        frame = frame,
+        points = CapturePoints(frame),
+        parent = frame:GetParent(),
+        scale = frame:GetScale(),
+        shown = frame:IsShown(),
+        strata = frame:GetFrameStrata(),
+        level = frame:GetFrameLevel(),
+    }
 end
 
 -- Snapshot everything we are about to overwrite. Runs exactly once, before the
@@ -270,7 +399,7 @@ local function CaptureOriginal()
         zoneText = nil,
     }
 
-    local zoneButton = Resolve("MinimapCluster.ZoneTextButton")
+    local zoneButton = ResolveFirst(ZONE_TEXT_PATHS)
     if zoneButton then
         original.zoneText = {
             parent = zoneButton:GetParent(),
@@ -282,17 +411,8 @@ local function CaptureOriginal()
     end
 
     for _, widget in ipairs(Square.WIDGETS) do
-        local frame = ResolveWidget(widget)
-        if frame then
-            original.placements[widget.key] = {
-                frame = frame,
-                points = CapturePoints(frame),
-                parent = frame:GetParent(),
-                scale = frame:GetScale(),
-                shown = frame:IsShown(),
-                strata = frame:GetFrameStrata(),
-                level = frame:GetFrameLevel(),
-            }
+        for _, frame in ipairs(ResolveWidgetFrames(widget) or {}) do
+            CapturePlacement(frame)
         end
     end
 
@@ -302,10 +422,11 @@ local function CaptureOriginal()
     -- for a square minimap had in mind. If the frame has no resolved rect yet
     -- (common at login) this stays nil and Apply falls back to placing it under
     -- the map instead.
-    local tracker = _G.ObjectiveTrackerFrame
+    local tracker = ResolveTracker()
     if tracker then
         local left, top = tracker:GetLeft(), tracker:GetTop()
         original.tracker = {
+            frame = tracker,
             points = CapturePoints(tracker),
             left = left,
             top = top,
@@ -319,12 +440,11 @@ local function CaptureOriginal()
         end
     end
 
-    for _, path in ipairs({ "Minimap.ZoomIn", "Minimap.ZoomOut" }) do
-        local button = Resolve(path)
-        if button then
-            original.zoomShown[path] = button:IsShown()
-        end
-    end
+    -- Keyed by direction rather than path, so Restore finds the same button
+    -- whichever of the two layouts it was resolved from.
+    local zoomIn, zoomOut = ResolveFirst(ZOOM_IN_PATHS), ResolveFirst(ZOOM_OUT_PATHS)
+    if zoomIn then original.zoomShown["in"] = { frame = zoomIn, shown = zoomIn:IsShown() } end
+    if zoomOut then original.zoomShown.out = { frame = zoomOut, shown = zoomOut:IsShown() } end
 end
 
 --------------------------------------------------------------------------------
@@ -367,7 +487,7 @@ end
 -- header. On a square it reads better as a plain label pinned to the top edge,
 -- so we hide the art and re-anchor the button that carries the text.
 local function ApplyZoneText(config)
-    local button = Resolve("MinimapCluster.ZoneTextButton")
+    local button = ResolveFirst(ZONE_TEXT_PATHS)
     if not button then return end
 
     local mode = config.zoneTextMode or "overlay"
@@ -419,7 +539,7 @@ local function DetachObjectiveTracker(config, size)
     if config.objectiveTracker ~= "detach" then return end
     if trackerDetached then return end
 
-    local tracker = _G.ObjectiveTrackerFrame
+    local tracker = ResolveTracker()
     if not tracker or not original then return end
 
     RawClearAllPoints(tracker)
@@ -532,29 +652,36 @@ function Square:Apply()
 
     -- Zoom buttons: the mouse wheel already zooms, so they are clutter by
     -- default. Kept behind a toggle rather than removed outright.
-    for _, path in ipairs({ "Minimap.ZoomIn", "Minimap.ZoomOut" }) do
-        local button = Resolve(path)
+    --
+    -- Classic's wheel does not zoom out of the box, which makes the toggle
+    -- matter more there, not less; the default is still the same on every
+    -- client so a shared profile means the same thing everywhere.
+    local zoomIn = ResolveFirst(ZOOM_IN_PATHS)
+    local zoomOut = ResolveFirst(ZOOM_OUT_PATHS)
+    for _, button in ipairs({ zoomIn or false, zoomOut or false }) do
         if button then
             if config.hideZoomButtons ~= false then
                 button:Hide()
             else
                 button:Show()
                 RawClearAllPoints(button)
-                if path == "Minimap.ZoomIn" then
+                if button == zoomIn or not zoomIn then
                     RawSetPoint(button, "BOTTOMRIGHT", minimap, "BOTTOMRIGHT", 0, 0)
                 else
-                    RawSetPoint(button, "RIGHT", Resolve("Minimap.ZoomIn"), "LEFT", -4, 0)
+                    RawSetPoint(button, "RIGHT", zoomIn, "LEFT", -4, 0)
                 end
             end
         end
     end
 
-    -- Blizzard's widgets, each to wherever the user has sent it.
+    -- Blizzard's widgets, each to wherever the user has sent it. A widget can
+    -- stand for more than one frame on Classic (see WIDGETS), so the whole
+    -- disposition below runs per frame, under the widget's one setting.
     local Buttons = PMM.Buttons
     for _, widget in ipairs(Square.WIDGETS) do
-        local frame = ResolveWidget(widget)
-        if frame then
-            local mode = ModeFor(widget)
+        local mode = ModeFor(widget)
+        for _, frame in ipairs(ResolveWidgetFrames(widget) or {}) do
+            CapturePlacement(frame)
 
             -- Leaving the grid has to happen before anything else, or a widget
             -- switched from "grid" to a corner would be positioned and then
@@ -565,16 +692,16 @@ function Square:Apply()
 
             if mode == "hidden" then
                 frame:Hide()
-                hiddenByUs[widget.key] = true
+                hiddenByUs[frame] = true
             else
                 -- Only undo a hide we performed. Several of these widgets are
                 -- contextual - the difficulty flag outside an instance, the mail
                 -- icon with an empty mailbox, the eye when not queued - and
                 -- showing them unconditionally would pin them on screen
                 -- permanently, which is the opposite of tidying up.
-                if hiddenByUs[widget.key] then
+                if hiddenByUs[frame] then
                     frame:Show()
-                    hiddenByUs[widget.key] = nil
+                    hiddenByUs[frame] = nil
                 end
 
                 if not (mode == "grid" and Buttons and Buttons:AdoptExternal(frame)) then
@@ -644,7 +771,7 @@ function Square:Restore()
     local cluster = _G.MinimapCluster
 
     ApplyShapeGlobal(false)
-    minimap:SetMaskTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    minimap:SetMaskTexture(RoundMaskTexture())
     pcall(minimap.SetArchBlobRingScalar, minimap, 1)
     pcall(minimap.SetArchBlobRingAlpha, minimap, 1)
     pcall(minimap.SetQuestBlobRingScalar, minimap, 1)
@@ -663,10 +790,10 @@ function Square:Restore()
         end
     end
 
-    for path, shown in pairs(original.zoomShown) do
-        local button = Resolve(path)
+    for _, snapshot in pairs(original.zoomShown) do
+        local button = snapshot.frame
         if button then
-            if shown then button:Show() else button:Hide() end
+            if snapshot.shown then button:Show() else button:Hide() end
         end
     end
 
@@ -687,12 +814,14 @@ function Square:Restore()
     hiddenByUs = {}
 
     if original.tracker and trackerDetached then
-        local tracker = _G.ObjectiveTrackerFrame
+        -- The frame that was captured, not a fresh lookup: the points belong to
+        -- it, whichever of the three trackers this client has.
+        local tracker = original.tracker.frame
         if tracker then RestorePoints(tracker, original.tracker.points) end
         trackerDetached = false
     end
 
-    local zoneButton = Resolve("MinimapCluster.ZoneTextButton")
+    local zoneButton = ResolveFirst(ZONE_TEXT_PATHS)
     local zoneSnapshot = original.zoneText
     if zoneButton and zoneSnapshot then
         zoneButton:SetParent(zoneSnapshot.parent)

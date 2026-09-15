@@ -69,6 +69,16 @@ local IGNORE_EXACT = {
     MiniMapLFGFrame = true,
     MiniMapVoiceChatFrame = true,
     MinimapMailFrame = true,
+    -- The Classic clients' dungeon finder eye. Unlike the rest of Classic's
+    -- stock buttons its name does not start with Minimap or MiniMap, so no
+    -- pattern below catches it and it would otherwise be swept into the grid
+    -- as an addon button. It reaches the grid only through the queueStatus
+    -- widget, and only if the user sends it there.
+    LFGMinimapFrame = true,
+    -- The quest watch frames are never minimap children on any client, but
+    -- listing them costs nothing and keeps the sweep from ever adopting one.
+    QuestWatchFrame = true,
+    WatchFrame = true,
 }
 
 -- This addon's own furniture is anonymous: a named frame built from a template
