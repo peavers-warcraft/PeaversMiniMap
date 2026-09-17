@@ -231,15 +231,25 @@ end
 -- carries its own: restoring retail's path on Classic leaves the map drawn
 -- through a texture that is not there, which renders it as a square anyway.
 --
--- Decided by flavour rather than by probing, because there is nothing to probe
--- - Minimap has no GetMaskTexture. PeaversCommons.Compat answers when it is
--- loaded; otherwise WOW_PROJECT_ID, which every client defines. Anything that
--- cannot be identified keeps retail's path, so retail behaves exactly as before.
+-- Decided by flavour rather than by reading it back, because Minimap has no
+-- GetMaskTexture. Which mask a client ships is checkable though, and was:
+-- GetFileIDFromPath on the Forever beta returns 130924 for retail's portrait
+-- mask and nothing at all for Textures\MinimapMask. So the question is the
+-- client's generation, not which game it is - Forever is not retail and still
+-- wants retail's path. PeaversCommons.Compat answers when it is loaded;
+-- otherwise WOW_PROJECT_ID, which every client defines and which Forever
+-- reports as mainline, landing it on retail's path anyway. Anything that cannot
+-- be identified keeps retail's path, so retail behaves exactly as before.
 local RETAIL_ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local CLASSIC_ROUND_MASK = "Textures\\MinimapMask"
 
 local function RoundMaskTexture()
     local compat = PeaversCommons.Compat
+    if compat and compat.isModernClient ~= nil then
+        return compat.isModernClient and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
+    end
+    -- An older PeaversCommons has no isModernClient. There isRetail is the same
+    -- answer for every client it knows about, and it predates Forever entirely.
     if compat and compat.isRetail ~= nil then
         return compat.isRetail and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
     end
