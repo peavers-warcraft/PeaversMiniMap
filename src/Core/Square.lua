@@ -244,14 +244,9 @@ local RETAIL_ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local CLASSIC_ROUND_MASK = "Textures\\MinimapMask"
 
 local function RoundMaskTexture()
-    local compat = PeaversCommons.Compat
-    if compat and compat.isModernClient ~= nil then
-        return compat.isModernClient and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
-    end
-    -- An older PeaversCommons has no isModernClient. There isRetail is the same
-    -- answer for every client it knows about, and it predates Forever entirely.
-    if compat and compat.isRetail ~= nil then
-        return compat.isRetail and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
+    local shared = PeaversCommons.Client
+    if shared and shared.isModernClient ~= nil then
+        return shared.isModernClient and RETAIL_ROUND_MASK or CLASSIC_ROUND_MASK
     end
     local project, mainline = _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE
     if project ~= nil and mainline ~= nil and project ~= mainline then
